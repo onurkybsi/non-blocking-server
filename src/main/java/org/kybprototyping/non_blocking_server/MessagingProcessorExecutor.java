@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 final class MessagingProcessorExecutor implements Runnable {
 
   private static final Logger LOGGER = LogManager.getLogger(MessagingProcessorExecutor.class);
-  private static final List<MessagingProcessor> HANDLERS =
+  private static final List<MessagingProcessor> PROCESSORS =
       Arrays.asList(new IncomingMessageStorageProcessor());
 
   private final SocketChannel connection;
@@ -28,16 +28,16 @@ final class MessagingProcessorExecutor implements Runnable {
     if (processorCtx == null)
       return;
 
-    for (var handler : HANDLERS) {
+    for (var processor : PROCESSORS) {
       try {
-        handler.handle(processorCtx);
+        processor.process(processorCtx);
       } catch (Exception e) {
-        LOGGER.error("Handler {} execution unsuccessful!", handler.getClass().getName(), e);
+        LOGGER.error("Processor {} execution unsuccessful!", processor.getClass().getName(), e);
         setInternalServerError();
         break;
       }
     }
-    LOGGER.debug("All handlers were executed!");
+    LOGGER.debug("All processors were executed!");
 
     if (!ctx.isOutgoingMessageComplete()) {
       ctx.setOutgoingMessageBuffer(processorCtx.getOutgoingMessage());
@@ -51,7 +51,7 @@ final class MessagingProcessorExecutor implements Runnable {
       return new ProcessorMessagingContext(connection.getRemoteAddress(),
           ctx.getIncomingMessageBuffer().array());
     } catch (IOException e) {
-      LOGGER.error("Incoming message context couldn't be extracted!", e);
+      LOGGER.error("Processor message context couldn't be extracted!", e);
       setInternalServerError();
       return null;
     }

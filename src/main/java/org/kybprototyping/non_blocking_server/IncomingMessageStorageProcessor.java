@@ -14,22 +14,26 @@ final class IncomingMessageStorageProcessor implements MessagingProcessor {
   private static final Logger LOGGER = LogManager.getLogger(IncomingMessageStorageProcessor.class);
 
   @Override
-  public void handle(ProcessorMessagingContext ctx) {
-    String messageStorageBasePath = System.getenv("MESSAGE_STORAGE_PATH");
-    if (messageStorageBasePath == null) {
-      throw new RuntimeException("messageStorageBasePath couldn't be resolved!"); // NOSONAR
-    }
-    Path messageStoragePath = Path.of(messageStorageBasePath
-        + "/%s-%s.txt".formatted(ctx.getSenderAddress(), Instant.now().getEpochSecond()));
-
+  public void process(ProcessorMessagingContext ctx) {
+    Path messageStoragePath = buildMessageStoragePath(ctx);
     boolean isStoredSuccessfully = store(ctx.getIncomingMessage(), messageStoragePath);
     setOutgoingMessage(isStoredSuccessfully, ctx);
   }
 
-  private static boolean store(byte[] content, Path path) {
+  private static Path buildMessageStoragePath(ProcessorMessagingContext ctx) {
+    String messageStorageBasePath = System.getenv("MESSAGE_STORAGE_PATH");
+    if (messageStorageBasePath == null) {
+      throw new RuntimeException("messageStorageBasePath couldn't be resolved!"); // NOSONAR
+    }
+
+    return Path.of(messageStorageBasePath
+        + "/%s-%s.txt".formatted(ctx.getSenderAddress(), Instant.now().getEpochSecond()));
+  }
+
+  private static boolean store(byte[] messageToStore, Path path) {
     try (FileChannel channel =
         FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
-      channel.write(ByteBuffer.wrap(content));
+      channel.write(ByteBuffer.wrap(messageToStore));
       return true;
     } catch (IOException e) {
       LOGGER.error("Message couldn't be stored: {}", path, e);
