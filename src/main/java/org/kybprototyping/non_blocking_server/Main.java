@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 final class Main {
 
-  private static final int TIMEOUT_SEC = 10;
+  private static final int TIMEOUT_SEC = 20;
   private static final int MESSAGE_END_INDICATOR = 3;
 
   private static final Logger LOGGER = LogManager.getLogger(Main.class);
@@ -54,7 +54,7 @@ final class Main {
               SocketChannel connection = server.accept();
               connection.configureBlocking(false);
               connection.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-                  ServerMessagingContext.of(ByteBuffer.allocate(1000)));
+                  ServerMessagingContext.of(ByteBuffer.allocate(200)));
             } else if (isReadable(selectedKey))
               read(selectedKey);
             else if (isWritable(selectedKey))
@@ -75,28 +75,26 @@ final class Main {
 
   private static void read(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
+    if (!connection.isOpen()) {
+      LOGGER.warn("Connection is already closed: {}", connection);
+      selectedKey.cancel();
+      return;
+    }
     ServerMessagingContext ctx = (ServerMessagingContext) selectedKey.attachment();
     if (ctx.isIncomingMessageComplete()) {
       return;
     }
 
-    // TODO: Handle buffer.remaining() == 0 case!
     ByteBuffer buffer = ctx.getIncomingMessageBuffer();
     connection.read(buffer);
-    if (!connection.isOpen()) {
-      LOGGER.debug("Connection already closed {}", connection);
-      selectedKey.cancel();
-    }
-
     if (isIncomingMessageComplete(ctx)) {
       LOGGER.debug("Incoming message is complete, it's being processed: {}", connection);
       ctx.setIncomingMessageComplete();
       PROCESSOR_EXECUTOR.submit(new MessagingProcessorExecutor(connection, ctx));
       return;
     }
-
     if (isTimedOut(ctx)) {
-      LOGGER.warn("Timeout occurred for {}", connection);
+      LOGGER.warn("Connection timeout occurred: {}", connection);
       connection.close();
       selectedKey.cancel();
     }
@@ -104,14 +102,24 @@ final class Main {
 
   private static void write(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
+    if (!connection.isOpen()) {
+      LOGGER.warn("Connection is already closed: {}", connection);
+      selectedKey.cancel();
+      return;
+    }
     ServerMessagingContext ctx = (ServerMessagingContext) selectedKey.attachment();
     if (!ctx.isOutgoingMessageComplete()) {
       return;
     }
-
     ByteBuffer buffer = ctx.getOutgoingMessageBuffer();
     if (buffer == null) {
-      LOGGER.debug("No outgoing message set, connection {} is being closed...", connection);
+      LOGGER.warn("No outgoing message set, connection {} is being closed...", connection);
+      connection.close();
+      selectedKey.cancel();
+      return;
+    }
+    if (!buffer.hasRemaining() && isTimedOut(ctx)) {
+      LOGGER.debug("Complete connection is being closed due to timeout: {}", connection);
       connection.close();
       selectedKey.cancel();
       return;
@@ -119,14 +127,11 @@ final class Main {
 
     connection.write(buffer);
     if (!buffer.hasRemaining()) {
-      LOGGER.debug("Outgoing has been written, connection {} is being closed...", connection);
-      connection.close();
-      selectedKey.cancel();
+      LOGGER.debug("Outgoing message has been completely written: {}", connection);
       return;
     }
-
     if (isTimedOut(ctx)) {
-      LOGGER.warn("Timeout occurred for {}", connection);
+      LOGGER.warn("Connection timeout occurred: {}", connection);
       connection.close();
       selectedKey.cancel();
     }
@@ -165,7 +170,7 @@ final class Main {
   private static boolean isIncomingMessageComplete(ServerMessagingContext message) {
     ByteBuffer buffer = message.getIncomingMessageBuffer();
     buffer.flip();
-    return buffer.get(buffer.limit() - 1) == MESSAGE_END_INDICATOR;
+    return buffer.limit() > 0 && buffer.get(buffer.limit() - 1) == MESSAGE_END_INDICATOR;
   }
 
   private static void addShutdownHookForCloseables(Closeable... closeables) {

@@ -44,9 +44,9 @@ final class IncomingMessageStorageProcessor implements MessagingProcessor {
   private static void setOutgoingMessage(boolean isStoredSuccessfully,
       ProcessorMessagingContext ctx) {
     if (isStoredSuccessfully) {
-      ctx.setOutgoingMessage(ByteBuffer.wrap("SUCCESSFUL".getBytes()));
+      ctx.setOutgoingMessage(ByteBuffer.wrap("SUCCESSFUL\r\n".getBytes()));
     } else {
-      ctx.setOutgoingMessage(ByteBuffer.wrap("UNSUCCESSFUL".getBytes()));
+      ctx.setOutgoingMessage(ByteBuffer.wrap("UNSUCCESSFUL\r\n".getBytes()));
     }
   }
 
