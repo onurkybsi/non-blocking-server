@@ -1,6 +1,6 @@
 # Non-blocking Server Prototype
 
-This project is a prototype of a web server that runs non-blocking with a single thread thanks to the Java NIO library and uses the resource efficiently by processing each incoming request with virtual threads.
+This project is a prototype of a web server that runs non-blocking with a single thread thanks to the _Java NIO_ library and uses the resource efficiently by processing each incoming request with _virtual threads_.
 
 ## Testing Command:
 
