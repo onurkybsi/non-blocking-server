@@ -13,7 +13,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.lookup.MainMapLookup;
 
 final class Main {
 
@@ -25,7 +24,6 @@ final class Main {
       .newThreadPerTaskExecutor(Thread.ofVirtual().name("processor-executor-", 0).factory());
 
   public static void main(String[] args) {
-    MainMapLookup.setMainArguments(args);
     ServerConfig config = ServerConfig.build(args);
     LOGGER.info("Server port: {}", config.getPort());
     LOGGER.info("Server message storage path: {}", config.getMessageStoragePath());
