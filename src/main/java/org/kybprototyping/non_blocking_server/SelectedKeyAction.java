@@ -1,6 +1,7 @@
 package org.kybprototyping.non_blocking_server;
 
 import static org.kybprototyping.non_blocking_server.configuration.ConfigurationExtractor.extractAsInteger;
+import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.MAX_BUFFER_SIZE_BYTES;
 import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.TIMEOUT_SEC;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class SelectedKeyAction implements Consumer<SelectionKey> {
 
+  private static final int MAX_BUFFER_SIZE = extractAsInteger(MAX_BUFFER_SIZE_BYTES);
   private static final int MESSAGE_END_INDICATOR = 3;
 
   private static final Logger logger = LogManager.getLogger(SelectedKeyAction.class);
@@ -32,11 +34,7 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
   public void accept(SelectionKey selectedKey) {
     try {
       if (selectedKey.isAcceptable()) {
-        ServerSocketChannel server = (ServerSocketChannel) selectedKey.channel();
-        SocketChannel connection = server.accept();
-        connection.configureBlocking(false);
-        connection.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-            ServerMessagingContext.of(ByteBuffer.allocate(200)));
+        acceptConnection(selectedKey);
       } else if (isReadable(selectedKey)) {
         read(selectedKey);
       } else if (isWritable(selectedKey)) {
@@ -48,6 +46,14 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     } catch (Exception e) {
       logger.error("Something went wrong during processing selectedKey: {}", selectedKey, e);
     }
+  }
+
+  private void acceptConnection(SelectionKey selectedKey) throws IOException {
+    ServerSocketChannel server = (ServerSocketChannel) selectedKey.channel();
+    SocketChannel connection = server.accept();
+    connection.configureBlocking(false);
+    connection.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE,
+        ServerMessagingContext.of(ByteBuffer.allocate(MAX_BUFFER_SIZE)));
   }
 
   private static void read(SelectionKey selectedKey) throws IOException {
