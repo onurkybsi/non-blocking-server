@@ -37,11 +37,11 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
         connection.configureBlocking(false);
         connection.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE,
             ServerMessagingContext.of(ByteBuffer.allocate(200)));
-      } else if (isReadable(selectedKey))
+      } else if (isReadable(selectedKey)) {
         read(selectedKey);
-      else if (isWritable(selectedKey))
+      } else if (isWritable(selectedKey)) {
         write(selectedKey);
-      else {
+      } else {
         logger.warn("Unexpected key selected, it's being cancelled: {}", selectedKey);
         selectedKey.cancel();
       }
