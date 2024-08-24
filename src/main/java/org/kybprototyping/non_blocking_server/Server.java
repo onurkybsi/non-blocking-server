@@ -51,7 +51,7 @@ final class Server {
    */
   boolean run() throws InterruptedException {
     if (!isRunning.get()) {
-      Executors.newSingleThreadExecutor().submit(() -> { // TODO: Customer ThreadFactory!
+      Executors.newSingleThreadExecutor().submit(() -> { // TODO: Custom ThreadFactory!
         int port = extractAsInteger(PORT);
         logger.info("Server port: {}", port);
 
