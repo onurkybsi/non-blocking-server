@@ -1,5 +1,8 @@
 package org.kybprototyping.non_blocking_server;
 
+import static org.kybprototyping.non_blocking_server.configuration.ConfigurationExtractor.extractAsInteger;
+import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.PORT;
+import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.TIMEOUT_SEC;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -16,34 +19,32 @@ import org.apache.logging.log4j.Logger;
 
 final class Main {
 
-  private static final int TIMEOUT_SEC = 20;
   private static final int MESSAGE_END_INDICATOR = 3;
 
   private static final Logger LOGGER = LogManager.getLogger(Main.class);
   private static final ExecutorService PROCESSOR_EXECUTOR = Executors
       .newThreadPerTaskExecutor(Thread.ofVirtual().name("processor-executor-", 0).factory());
 
-  public static void main(String[] args) {
-    ServerConfig config = ServerConfig.build(args);
-    LOGGER.info("Server port: {}", config.getPort());
-    LOGGER.info("Server message storage path: {}", config.getMessageStoragePath());
+  public static void main(String[] args) throws Exception {
+    int port = extractAsInteger(PORT);
+    LOGGER.info("Server port: {}", port);
 
     try (Selector selector = Selector.open();
         ServerSocketChannel serverChannel = ServerSocketChannel.open();) {
       addShutdownHookForCloseables(selector, serverChannel);
 
       serverChannel.configureBlocking(false);
-      serverChannel.socket().bind(new InetSocketAddress(config.getPort()));
+      serverChannel.socket().bind(new InetSocketAddress(port));
       serverChannel.register(selector, SelectionKey.OP_ACCEPT);
 
-      accept(selector, config);
+      accept(selector, port);
     } catch (Exception e) {
       LOGGER.error("Something went wrong during bootstrap!", e);
     }
   }
 
-  private static void accept(Selector selector, ServerConfig config) {
-    LOGGER.info("Listening on: {}", config.getPort());
+  private static void accept(Selector selector, int port) {
+    LOGGER.info("Listening on: {}", port);
 
     while (true) { // NOSONAR
       try {
@@ -164,7 +165,8 @@ final class Main {
   }
 
   private static boolean isTimedOut(ServerMessagingContext ctx) {
-    return Instant.now().getEpochSecond() - ctx.getStartTimestamp() >= TIMEOUT_SEC;
+    return Instant.now().getEpochSecond()
+        - ctx.getStartTimestamp() >= extractAsInteger(TIMEOUT_SEC);
   }
 
   private static boolean isIncomingMessageComplete(ServerMessagingContext message) {
