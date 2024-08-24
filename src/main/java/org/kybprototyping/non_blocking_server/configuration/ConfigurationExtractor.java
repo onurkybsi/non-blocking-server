@@ -30,7 +30,7 @@ public final class ConfigurationExtractor {
       logger.warn("server.properties could not be read!", e);
     }
   }
-  private static final Pattern REGEX_NUMERIC = Pattern.compile("-?\\d+(\\.\\d+)?");
+  private static final Pattern regexNumeric = Pattern.compile("-?\\d+(\\.\\d+)?");
 
   private static final HashMap<String, String> cache = new HashMap<>();
 
@@ -76,7 +76,7 @@ public final class ConfigurationExtractor {
    */
   public static int extractAsInteger(String key) {
     String value = extract(key);
-    if (REGEX_NUMERIC.matcher(value).matches()) {
+    if (regexNumeric.matcher(value).matches()) {
       return Integer.valueOf(value);
     }
     return Integer.valueOf(ServerConfigurationDefaults.defaults.get(key));
