@@ -1,8 +1,5 @@
 package org.kybprototyping.non_blocking_server;
 
-import static org.kybprototyping.non_blocking_server.configuration.ConfigurationExtractor.extractAsInteger;
-import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.MAX_BUFFER_SIZE_BYTES;
-import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.TIMEOUT_SEC;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
@@ -21,13 +18,13 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class SelectedKeyAction implements Consumer<SelectionKey> {
 
-  private static final int MAX_BUFFER_SIZE = extractAsInteger(MAX_BUFFER_SIZE_BYTES);
   private static final int MESSAGE_END_INDICATOR = 3;
 
   private static final Logger logger = LogManager.getLogger(SelectedKeyAction.class);
   private static final ExecutorService PROCESSOR_EXECUTOR = Executors
       .newThreadPerTaskExecutor(Thread.ofVirtual().name("processor-executor-", 0).factory());
 
+  private final ServerProperties properties;
   private final Selector selector;
 
   @Override
@@ -53,10 +50,10 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     SocketChannel connection = server.accept();
     connection.configureBlocking(false);
     connection.register(selector, SelectionKey.OP_READ | SelectionKey.OP_WRITE,
-        ServerMessagingContext.of(ByteBuffer.allocate(MAX_BUFFER_SIZE)));
+        ServerMessagingContext.of(ByteBuffer.allocate(properties.maxBufferSizeInBytes())));
   }
 
-  private static void read(SelectionKey selectedKey) throws IOException {
+  private void read(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
     if (!connection.isOpen()) {
       logger.warn("Connection is already closed: {}", connection);
@@ -83,7 +80,7 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     }
   }
 
-  private static void write(SelectionKey selectedKey) throws IOException {
+  private void write(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
     if (!connection.isOpen()) {
       logger.warn("Connection is already closed: {}", connection);
@@ -120,6 +117,10 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     }
   }
 
+  private boolean isTimedOut(ServerMessagingContext ctx) {
+    return Instant.now().getEpochSecond() - ctx.getStartTimestamp() >= properties.timeoutInMs();
+  }
+
   private static boolean isReadable(SelectionKey selectedKey) {
     if (!selectedKey.isReadable()) {
       return false;
@@ -146,16 +147,10 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     return true;
   }
 
-  private static boolean isTimedOut(ServerMessagingContext ctx) {
-    return Instant.now().getEpochSecond()
-        - ctx.getStartTimestamp() >= extractAsInteger(TIMEOUT_SEC);
-  }
-
   private static boolean isIncomingMessageComplete(ServerMessagingContext message) {
     ByteBuffer buffer = message.getIncomingMessageBuffer();
     buffer.flip();
     return buffer.limit() > 0 && buffer.get(buffer.limit() - 1) == MESSAGE_END_INDICATOR;
   }
-
 
 }

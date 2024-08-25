@@ -1,7 +1,5 @@
 package org.kybprototyping.non_blocking_server;
 
-import static org.kybprototyping.non_blocking_server.configuration.ConfigurationExtractor.extractAsInteger;
-import static org.kybprototyping.non_blocking_server.configuration.ServerConfigurationKeys.PORT;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
@@ -26,6 +24,7 @@ public final class Server implements AutoCloseable {
 
   private static final Logger logger = LogManager.getLogger(Server.class);
 
+  private final ServerProperties properties;
   private final Selector selector;
   private final ServerSocketChannel serverChannel;
   private final ExecutorService executorService;
@@ -42,11 +41,11 @@ public final class Server implements AutoCloseable {
    * @return built {@link Server}
    * @throws IOException if the building fails
    */
-  public static Server build() throws IOException {
+  public static Server build(ServerProperties properties) throws IOException {
     Selector selector = Selector.open();
     ServerSocketChannel serverChannel = ServerSocketChannel.open();
     ExecutorService executorService = Executors.newSingleThreadExecutor(new ServerThreadFactory());
-    return new Server(selector, serverChannel, executorService);
+    return new Server(properties, selector, serverChannel, executorService);
   }
 
   /**
@@ -73,13 +72,12 @@ public final class Server implements AutoCloseable {
     this.stopCompletion = new CountDownLatch(1);
 
     try {
-      int port = extractAsInteger(PORT);
-      logger.info("Server port: {}", port);
+      logger.info("Server properties: {}", this.properties);
 
       this.serverChannel.configureBlocking(false);
-      this.serverChannel.socket().bind(new InetSocketAddress(port));
-      this.serverChannel.register(selector, SelectionKey.OP_ACCEPT);
-      executorService.submit(() -> accept(selector, port));
+      this.serverChannel.socket().bind(new InetSocketAddress(this.properties.port()));
+      this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
+      executorService.submit(this::accept);
 
       this.startCompletion.await();
       return true;
@@ -150,10 +148,10 @@ public final class Server implements AutoCloseable {
     }
   }
 
-  private void accept(Selector selector, int port) {
-    logger.info("Listening on: {}", port);
+  private void accept() {
+    logger.info("Listening on: {}", this.properties.port());
 
-    var selectedKeyAction = new SelectedKeyAction(selector);
+    var selectedKeyAction = new SelectedKeyAction(this.properties, this.selector);
 
     this.isRunning.set(true);
     this.startCompletion.countDown();
