@@ -56,41 +56,37 @@ public final class Server implements AutoCloseable {
    * This method blocks the current thread until the server starts to listen.
    * </p>
    * 
-   * @return {@code true} if the server is successfully started, otherwise {@code false}
-   * @throws IllegalStateException if the server has shut down(closed)
+   * @return {@code false} if the server is already started, otherwise {@code true}
+   * @throws IllegalStateException if the server has already shut down(closed)
+   * @throws IOException if socket to listen could not get bound
    * @throws InterruptedException if the current thread is interrupted before listening
    */
-  public synchronized boolean start() throws InterruptedException {
+  public synchronized boolean start() throws IOException, InterruptedException {
     if (this.hasShutDown.get()) {
       throw new IllegalStateException("Server has shut down!");
     }
-
-    if (!this.isRunning.get()) {
-      this.startCompletion = new CountDownLatch(1);
-      this.stopCompletion = new CountDownLatch(1);
-
-      executorService.submit(() -> {
-        int port = extractAsInteger(PORT);
-        logger.info("Server port: {}", port);
-
-        try {
-          this.serverChannel.configureBlocking(false);
-          this.serverChannel.socket().bind(new InetSocketAddress(port));
-          this.serverChannel.register(selector, SelectionKey.OP_ACCEPT);
-
-          accept(selector, port);
-          this.stopCompletion.countDown();
-        } catch (IOException e) {
-          logger.error("Something went wrong during bootstrap!", e);
-          this.startCompletion.countDown();
-        }
-      });
-
-      this.startCompletion.await();
-      return this.isRunning();
+    if (this.isRunning.get()) {
+      return false;
     }
 
-    return true;
+    this.startCompletion = new CountDownLatch(1);
+    this.stopCompletion = new CountDownLatch(1);
+
+    try {
+      int port = extractAsInteger(PORT);
+      logger.info("Server port: {}", port);
+
+      this.serverChannel.configureBlocking(false);
+      this.serverChannel.socket().bind(new InetSocketAddress(port));
+      this.serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+      executorService.submit(() -> accept(selector, port));
+
+      this.startCompletion.await();
+      return true;
+    } catch (IOException e) {
+      logger.error("Bootstrap failed!", e);
+      throw e;
+    }
   }
 
   /**
@@ -116,23 +112,7 @@ public final class Server implements AutoCloseable {
    * @throws InterruptedException if the current thread is interrupted before stopping
    */
   public synchronized boolean stop() throws InterruptedException {
-    if (this.isRunning.get()) {
-      try {
-        logger.debug("Stop request received...");
-
-        this.isRunning.set(false);
-        this.selector.wakeup();
-        this.stopCompletion.await();
-
-        logger.info("Server stopped successfully!");
-        return true;
-      } catch (InterruptedException e) {
-        logger.error("Stop interrupted!", e);
-        throw e;
-      }
-    } else {
-      return false;
-    }
+    return this.stopServer();
   }
 
   /**
@@ -144,21 +124,26 @@ public final class Server implements AutoCloseable {
     return !this.hasShutDown.get();
   }
 
+  /**
+   * @throws InterruptedException if the current thread is interrupted before closing
+   * @throws IOException if an I/O error occurs
+   */
   @Override
-  public void close() throws Exception {
-    if (!this.hasShutDown.compareAndSet(false, true)) {
+  public synchronized void close() throws InterruptedException, IOException {
+    if (this.hasShutDown.get()) {
       return;
     }
 
     try {
-      this.stop();
+      this.stopServer();
 
       this.serverChannel.close();
       this.selector.close();
       this.executorService.close();
 
+      this.hasShutDown.set(true);
       logger.debug("Shutdown is successful!");
-    } catch (Exception e) {
+    } catch (IOException e) {
       logger.error("Shutdown failed!", e);
       this.hasShutDown.set(false);
       throw e;
@@ -179,6 +164,24 @@ public final class Server implements AutoCloseable {
         logger.error("Something went wrong during key selection!", e);
       }
     }
+    this.stopCompletion.countDown();
+  }
+
+  private boolean stopServer() throws InterruptedException {
+    if (this.hasShutDown.get()) {
+      throw new IllegalStateException("Server has shut down!");
+    }
+    if (!this.isRunning.get()) {
+      return false;
+    }
+    logger.debug("Server is being stopped...");
+
+    this.isRunning.set(false);
+    this.selector.wakeup();
+    this.stopCompletion.await();
+
+    logger.info("Server stopped successfully!");
+    return true;
   }
 
 }
