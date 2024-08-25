@@ -57,7 +57,7 @@ public final class ConfigurationExtractor {
 
     String fromServerProperties = serverProperties.getProperty(key);
     if (fromServerProperties != null) {
-      cache.put(key, fromEnvs);
+      cache.put(key, fromServerProperties);
       return fromServerProperties;
     }
 

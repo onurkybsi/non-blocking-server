@@ -4,7 +4,7 @@ final class Main {
 
   public static void main(String[] args) throws Exception {
     Server server = Server.build();
-    server.run();
+    server.start();
   }
 
 }
