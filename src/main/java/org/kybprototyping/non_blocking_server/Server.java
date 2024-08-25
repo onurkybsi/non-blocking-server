@@ -15,8 +15,13 @@ import org.apache.logging.log4j.Logger;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
+/**
+ * Non-blocking server that listens the configured port.
+ * 
+ * @author Onur Kayabasi (o.kayabasi@outlook.com)
+ */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-final class Server {
+public final class Server {
 
   private static final Logger logger = LogManager.getLogger(Server.class);
 
@@ -51,7 +56,7 @@ final class Server {
    */
   boolean run() throws InterruptedException {
     if (!isRunning.get()) {
-      Executors.newSingleThreadExecutor().submit(() -> { // TODO: Custom ThreadFactory!
+      Executors.newSingleThreadExecutor(new ServerThreadFactory()).submit(() -> {
         int port = extractAsInteger(PORT);
         logger.info("Server port: {}", port);
 
