@@ -13,15 +13,20 @@ import lombok.RequiredArgsConstructor;
 @Getter
 final class ServerMessagingContext {
 
+  /*
+   * TODO: Use a custom wrapper to prevent the client server to write to buffer when it checks the
+   * end of reading!
+   */
   private final ByteBuffer incomingMessageBuffer;
   private final Long startTimestamp;
-  private boolean isIncomingMessageComplete;
-  private ByteBuffer outgoingMessageBuffer;
+
+  private volatile boolean isIncomingMessageComplete;
+  private volatile ByteBuffer outgoingMessageBuffer;
   private Long endTimestamp;
-  private boolean isOutgoingMessageComplete;
+  private volatile boolean isOutgoingMessageComplete;
 
   static ServerMessagingContext of(ByteBuffer incomingMessageBuffer) {
-    return new ServerMessagingContext(incomingMessageBuffer, Instant.now().getEpochSecond());
+    return new ServerMessagingContext(incomingMessageBuffer, Instant.now().toEpochMilli());
   }
 
   void setIncomingMessageComplete() {
@@ -32,8 +37,8 @@ final class ServerMessagingContext {
     this.isOutgoingMessageComplete = true;
   }
 
-  void setOutgoingMessageBuffer(ByteBuffer outgoingMessageBuffer) {
-    this.outgoingMessageBuffer = outgoingMessageBuffer;
+  void setOutgoingMessageBuffer(byte[] outgoingMessage) {
+    this.outgoingMessageBuffer = ByteBuffer.wrap(outgoingMessage);
   }
 
   void setEndTimestamp(Long endTimestamp) {

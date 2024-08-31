@@ -6,15 +6,18 @@ import lombok.Builder;
  * Server configuration values.
  */
 @Builder
-public record ServerProperties(Integer port, Integer maxBufferSizeInBytes, Integer timeoutInMs) {
+public record ServerProperties(Integer port, Integer minBufferSizeInBytes,
+    Integer maxBufferSizeInBytes, Integer readTimeoutInMs, Integer connectionTimeoutInMs) {
   public static class ServerPropertiesBuilder {
     /**
      * {@link ServerProperties} with default values.
      */
     ServerPropertiesBuilder() {
       port = 8080;
+      minBufferSizeInBytes = 1;
       maxBufferSizeInBytes = 8000;
-      timeoutInMs = 10;
+      readTimeoutInMs = 5000;
+      connectionTimeoutInMs = 20000;
     }
   }
 }

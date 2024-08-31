@@ -2,15 +2,20 @@ package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
+import java.time.Clock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.kybprototyping.non_blocking_server.messaging.Formatter;
+import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
+import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -19,12 +24,15 @@ import lombok.RequiredArgsConstructor;
  * 
  * @author Onur Kayabasi (o.kayabasi@outlook.com)
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+@RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 public final class Server implements AutoCloseable {
 
   private static final Logger logger = LogManager.getLogger(Server.class);
 
   private final ServerProperties properties;
+  private final Formatter formatter;
+  private final TimeUtils timeUtils;
+  private final IncomingMessageHandler incomingMessageHandler;
   private final Selector selector;
   private final ServerSocketChannel serverChannel;
   private final ExecutorService executorService;
@@ -38,14 +46,20 @@ public final class Server implements AutoCloseable {
   /**
    * Builds the {@link Server} to run.
    * 
+   * @param properties server configuration values
+   * @param formatter user {@link Formatter} implementation
+   * @param clock server clock
+   * @param incomingMessageHandler user {@link IncomingMessageHandler} implementation
    * @return built {@link Server}
    * @throws IOException if the building fails
    */
-  public static Server build(ServerProperties properties) throws IOException {
+  public static Server build(ServerProperties properties, Formatter formatter, Clock clock,
+      IncomingMessageHandler incomingMessageHandler) throws IOException {
     Selector selector = Selector.open();
     ServerSocketChannel serverChannel = ServerSocketChannel.open();
     ExecutorService executorService = Executors.newSingleThreadExecutor(new ServerThreadFactory());
-    return new Server(properties, selector, serverChannel, executorService);
+    return new Server(properties, formatter, TimeUtils.builder().clock(clock).build(),
+        incomingMessageHandler, selector, serverChannel, executorService);
   }
 
   /**
@@ -76,8 +90,10 @@ public final class Server implements AutoCloseable {
 
       this.serverChannel.configureBlocking(false);
       this.serverChannel.socket().bind(new InetSocketAddress(this.properties.port()));
+      // TODO: How to set this?
+      this.serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, Integer.MAX_VALUE);
       this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
-      executorService.submit(this::accept);
+      this.executorService.submit(this::accept);
 
       this.startCompletion.await();
       return true;
@@ -151,7 +167,9 @@ public final class Server implements AutoCloseable {
   private void accept() {
     logger.info("Listening on: {}", this.properties.port());
 
-    var selectedKeyAction = new SelectedKeyAction(this.properties, this.selector);
+    var selectedKeyAction = new SelectedKeyAction(this.properties, this.selector,
+        new Reader(this.properties, this.formatter, this.timeUtils, this.incomingMessageHandler),
+        new Writer(this.properties, this.timeUtils));
 
     this.isRunning.set(true);
     this.startCompletion.countDown();
