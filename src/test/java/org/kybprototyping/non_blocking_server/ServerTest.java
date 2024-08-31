@@ -1,19 +1,22 @@
 package org.kybprototyping.non_blocking_server;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ServerTest {
 
@@ -63,20 +66,23 @@ class ServerTest {
     assertFalse(server.isOpen());
   }
 
-  @Test
-  void should_Process_Client_Message() throws Exception {
+  @ParameterizedTest
+  @ValueSource(ints = {1, 10, 100, 1000, 10_000})
+  void should_Process_Client_Messages(int numberOfMessages) throws Exception {
     // given
-    var outgoingMessage = "Hello!";
+    List<String> outgoingMessages = new ArrayList<>(numberOfMessages);
+    IntStream.range(0, numberOfMessages)
+        .forEach(i -> outgoingMessages.add("Hello from %s!".formatted(i)));
 
     // when
-    var actual = TestClient.send(outgoingMessage);
+    var actual = TestClient.send(outgoingMessages);
 
     // then
-    assertEquals("OK", actual);
+    assertTrue(actual.stream().allMatch(m -> "OK".equals(m)));
   }
 
   @Test
-  void should_Process_Concurrent_Client_Messages() throws Exception {
+  void should_Process_Concurrent_Connections() throws Exception {
     // given
     ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
