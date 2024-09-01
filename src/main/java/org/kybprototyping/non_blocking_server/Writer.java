@@ -27,6 +27,7 @@ final class Writer {
       logger.warn("Connection closed before writing is completed: {}", connection);
       // That's needed. Maybe the connection is closed but the resource is still not released.
       closeConnection(selectedKey, connection);
+      // TODO: We should let the user know that the connection closed while it builds the response!
       return;
     }
 

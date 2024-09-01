@@ -20,6 +20,8 @@ final class IncomingMessageHandlerExecutor implements Runnable {
       var outgoingMessage = handler.handle(incomingMessage());
       ctx.setOutgoingMessageBuffer(outgoingMessage.content());
       ctx.setOutgoingMessageComplete();
+      // TODO: Wait until the outgoing messsage is successfully written? How to let the user know? A
+      // callback through CountDownLatch?
     } catch (Exception e) {
       /**
        * TODO: Call user exception handler? Or user should have catched the exception just close the

@@ -60,6 +60,7 @@ final class Reader {
 
     if (isTimedOut(ctx)) {
       logger.warn("Connection timeout: {}", connection);
+      // TODO: Call user timeout handler!
       closeConnection(selectedKey, connection);
     }
 
