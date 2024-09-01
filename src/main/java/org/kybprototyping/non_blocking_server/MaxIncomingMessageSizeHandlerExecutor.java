@@ -1,24 +1,25 @@
 package org.kybprototyping.non_blocking_server;
 
-import java.io.IOException;
 import java.nio.channels.SocketChannel;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
-import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
+import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
-final class IncomingMessageHandlerExecutor implements Runnable {
+final class MaxIncomingMessageSizeHandlerExecutor implements Runnable {
 
   private final SocketChannel connection;
   private final ServerMessagingContext ctx;
-  private final IncomingMessageHandler handler;
+  private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
 
   @Override
   public void run() {
     try {
-      var outgoingMessage = handler.handle(incomingMessage());
-      ctx.setOutgoingMessageBuffer(outgoingMessage.content());
+      var incomingMessage = new IncomingMessage(connection.getRemoteAddress(),
+          ctx.getIncomingMessageBuffer().array());
+      var outgoingMessage = maxIncomingMessageSizeHandler.handle(incomingMessage).content();
+      ctx.setOutgoingMessageBuffer(outgoingMessage);
       ctx.setOutgoingMessageComplete();
     } catch (Exception e) {
       /**
@@ -26,11 +27,6 @@ final class IncomingMessageHandlerExecutor implements Runnable {
        * connection?
        */
     }
-  }
-
-  private IncomingMessage incomingMessage() throws IOException {
-    return new IncomingMessage(connection.getRemoteAddress(),
-        ctx.getIncomingMessageBuffer().array());
   }
 
 }

@@ -17,20 +17,26 @@ final class ServerMessagingContext {
    * TODO: Use a custom wrapper to prevent the client server to write to buffer when it checks the
    * end of reading!
    */
-  private final ByteBuffer incomingMessageBuffer;
   private final Long startTimestamp;
 
+  private ByteBuffer incomingMessageBuffer;
   private volatile boolean isIncomingMessageComplete;
   private volatile ByteBuffer outgoingMessageBuffer;
   private Long endTimestamp;
   private volatile boolean isOutgoingMessageComplete;
 
   static ServerMessagingContext of(ByteBuffer incomingMessageBuffer) {
-    return new ServerMessagingContext(incomingMessageBuffer, Instant.now().toEpochMilli());
+    var ctx = new ServerMessagingContext(Instant.now().toEpochMilli());
+    ctx.setIncomingMessageBuffer(incomingMessageBuffer);
+    return ctx;
   }
 
   void setIncomingMessageComplete() {
     this.isIncomingMessageComplete = true;
+  }
+
+  void setIncomingMessageBuffer(ByteBuffer incomingMessageBuffer) {
+    this.incomingMessageBuffer = incomingMessageBuffer;
   }
 
   void setOutgoingMessageComplete() {

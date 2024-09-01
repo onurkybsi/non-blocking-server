@@ -14,7 +14,7 @@ public record ServerProperties(Integer port, Integer minBufferSizeInBytes,
      */
     ServerPropertiesBuilder() {
       port = 8080;
-      minBufferSizeInBytes = 1;
+      minBufferSizeInBytes = 64;
       maxBufferSizeInBytes = 8000;
       readTimeoutInMs = 5000;
       connectionTimeoutInMs = 20000;

@@ -1,6 +1,7 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
@@ -9,12 +10,15 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
+import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
 final class Reader {
+
+  private static final int GROWTH_FACTOR = 2;
 
   private static final Logger logger = LogManager.getLogger(Reader.class);
   private static final ExecutorService executor =
@@ -24,6 +28,7 @@ final class Reader {
   private final Formatter formatter;
   private final TimeUtils timeUtils;
   private final IncomingMessageHandler incomingMessageHandler;
+  private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
 
   void read(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
@@ -38,7 +43,7 @@ final class Reader {
     if (bytesRead == -1) {
       if (connection.isConnected()) {
         // So the client closed its output stream and it waits for the server to write.
-        setReadingCompleted(connection, ctx, selectedKey);
+        setCompleted(connection, ctx, selectedKey);
       } else {
         // The client has closed the entire connection!
         logger.warn("Connection closed before reading is completed: {}", connection);
@@ -49,7 +54,7 @@ final class Reader {
     }
 
     if (formatter.isIncomingMessageComplete(ctx.getIncomingMessageBuffer())) {
-      setReadingCompleted(connection, ctx, selectedKey);
+      setCompleted(connection, ctx, selectedKey);
       return;
     }
 
@@ -57,9 +62,13 @@ final class Reader {
       logger.warn("Connection timeout: {}", connection);
       closeConnection(selectedKey, connection);
     }
+
+    if (!setCompletedIfMaxIncomingMessageSize(ctx, selectedKey, connection)) {
+      growBufferIfFull(ctx);
+    }
   }
 
-  private void setReadingCompleted(SocketChannel connection, ServerMessagingContext ctx,
+  private void setCompleted(SocketChannel connection, ServerMessagingContext ctx,
       SelectionKey selectedKey) {
     logger.debug("Incoming message is complete: {}", connection);
     ctx.setIncomingMessageComplete();
@@ -78,6 +87,36 @@ final class Reader {
     boolean isConnectionTimeoutOccurred =
         now - ctx.getStartTimestamp() >= properties.connectionTimeoutInMs();
     return isReadTimeoutOccurred || isConnectionTimeoutOccurred;
+  }
+
+  private boolean setCompletedIfMaxIncomingMessageSize(ServerMessagingContext ctx,
+      SelectionKey selectedKey, SocketChannel connection) throws IOException {
+    if (ctx.getIncomingMessageBuffer().capacity() < properties.maxBufferSizeInBytes()) {
+      return false;
+    }
+
+    logger.debug("Incoming message reached max size: {}", connection);
+    ctx.setIncomingMessageComplete();
+    selectedKey.interestOps(SelectionKey.OP_WRITE);
+    executor.submit(
+        new MaxIncomingMessageSizeHandlerExecutor(connection, ctx, maxIncomingMessageSizeHandler));
+    return true;
+  }
+
+  // Is this an efficient way?
+  private void growBufferIfFull(ServerMessagingContext ctx) {
+    if (ctx.getIncomingMessageBuffer().hasRemaining()) {
+      return;
+    }
+
+    int newCapacity = Math.min(ctx.getIncomingMessageBuffer().capacity() * GROWTH_FACTOR,
+        properties.maxBufferSizeInBytes());
+    ByteBuffer grownBuffer = ByteBuffer.allocate(newCapacity);
+
+    ctx.getIncomingMessageBuffer().flip(); // Switch to read mode
+    grownBuffer.put(ctx.getIncomingMessageBuffer()); // Copy data to the grown buffer
+
+    ctx.setIncomingMessageBuffer(grownBuffer);
   }
 
 }

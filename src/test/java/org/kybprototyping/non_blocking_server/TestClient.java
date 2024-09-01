@@ -19,7 +19,13 @@ final class TestClient {
   private static final Logger logger = LogManager.getLogger(TestClient.class);
 
   static String send(String outgoingMessage) throws IOException {
-    try (Socket socket = buildSocket()) {
+    try (Socket socket = buildSocket(8080)) {
+      return send(socket, outgoingMessage);
+    }
+  }
+
+  static String send(int port, String outgoingMessage) throws IOException {
+    try (Socket socket = buildSocket(port)) {
       return send(socket, outgoingMessage);
     }
   }
@@ -28,7 +34,7 @@ final class TestClient {
     List<String> responses = new ArrayList<>();
 
     for (String outgoingMessage : outgoingMessages) {
-      try (Socket socket = buildSocket()) {
+      try (Socket socket = buildSocket(8080)) {
         responses.add(send(socket, outgoingMessage));
       }
     }
@@ -56,13 +62,13 @@ final class TestClient {
     return byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
   }
 
-  private static Socket buildSocket() {
+  private static Socket buildSocket(int port) {
     int tryCount = 1;
     do {
       try {
         Thread.sleep((tryCount - 1) * 500);
 
-        return new Socket("localhost", 8080);
+        return new Socket("localhost", port);
       } catch (Exception e) {
         tryCount++;
         logger.warn("Exception occurred, retrying {}. times: {}", e.getMessage());

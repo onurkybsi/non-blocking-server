@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
+import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public final class Server implements AutoCloseable {
   private final Formatter formatter;
   private final TimeUtils timeUtils;
   private final IncomingMessageHandler incomingMessageHandler;
+  private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
   private final Selector selector;
   private final ServerSocketChannel serverChannel;
   private final ExecutorService executorService;
@@ -53,12 +55,14 @@ public final class Server implements AutoCloseable {
    * @throws IOException if the building fails
    */
   public static Server build(ServerProperties properties, Formatter formatter, Clock clock,
-      IncomingMessageHandler incomingMessageHandler) throws IOException {
+      IncomingMessageHandler incomingMessageHandler,
+      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler) throws IOException {
     Selector selector = Selector.open();
     ServerSocketChannel serverChannel = ServerSocketChannel.open();
     ExecutorService executorService = Executors.newSingleThreadExecutor(new ServerThreadFactory());
     return new Server(properties, formatter, TimeUtils.builder().clock(clock).build(),
-        incomingMessageHandler, selector, serverChannel, executorService);
+        incomingMessageHandler, maxIncomingMessageSizeHandler, selector, serverChannel,
+        executorService);
   }
 
   /**
@@ -165,8 +169,9 @@ public final class Server implements AutoCloseable {
   private void accept() {
     logger.info("Listening on: {}", this.properties.port());
 
-    var selectedKeyAction = new SelectedKeyAction(this.properties, this.selector,
-        new Reader(this.properties, this.formatter, this.timeUtils, this.incomingMessageHandler),
+    var selectedKeyAction = new SelectedKeyAction(
+        this.properties, this.selector, new Reader(this.properties, this.formatter, this.timeUtils,
+            this.incomingMessageHandler, this.maxIncomingMessageSizeHandler),
         new Writer(this.properties, this.timeUtils));
 
     this.isRunning.set(true);
