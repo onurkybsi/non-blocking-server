@@ -88,10 +88,18 @@ class ServerTest {
 
     // when
     var futures = new ArrayList<Future<String>>();
-    int numberOfMessages = 50;
+    int numberOfMessages = 1_000;
     for (int i = 0; i < numberOfMessages; i++) {
-      final String outgoingMessage = "Hello from %s!".formatted(i);
-      futures.add(executor.submit(() -> TestClient.send(outgoingMessage)));
+      final int ix = i;
+      final String outgoingMessage = "Hello from %s!".formatted(ix);
+      futures.add(executor.submit(() -> {
+        try {
+          Thread.sleep(ix * 15);
+          return TestClient.send(outgoingMessage);
+        } catch (InterruptedException e) {
+          return e.getMessage();
+        }
+      }));
     }
     executor.shutdown();
     executor.awaitTermination(1, TimeUnit.MINUTES);

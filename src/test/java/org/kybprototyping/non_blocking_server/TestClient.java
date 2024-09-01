@@ -9,11 +9,17 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 final class TestClient {
 
+  private static final int CONNECTION_MAX_TRY_COUNT = 5;
+
+  private static final Logger logger = LogManager.getLogger(TestClient.class);
+
   static String send(String outgoingMessage) throws IOException {
-    try (Socket socket = new Socket("localhost", 8080)) {
+    try (Socket socket = buildSocket()) {
       return send(socket, outgoingMessage);
     }
   }
@@ -22,7 +28,7 @@ final class TestClient {
     List<String> responses = new ArrayList<>();
 
     for (String outgoingMessage : outgoingMessages) {
-      try (Socket socket = new Socket("localhost", 8080)) {
+      try (Socket socket = buildSocket()) {
         responses.add(send(socket, outgoingMessage));
       }
     }
@@ -30,7 +36,7 @@ final class TestClient {
     return responses;
   }
 
-  static String send(Socket socket, String outgoingMessage) throws IOException {
+  private static String send(Socket socket, String outgoingMessage) throws IOException {
     OutputStream out = socket.getOutputStream();
     byte[] sizeBytes = ByteBuffer.allocate(4).putInt(outgoingMessage.length()).array();
     out.write(sizeBytes);
@@ -47,6 +53,21 @@ final class TestClient {
     }
 
     return byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+  }
+
+  private static Socket buildSocket() {
+    int tryCount = 1;
+    do {
+      try {
+        Thread.sleep((tryCount - 1) * 500);
+
+        return new Socket("localhost", 8080);
+      } catch (Exception e) {
+        tryCount++;
+        logger.warn("Exception occurred, retrying {}. times: {}", e.getMessage());
+      }
+    } while (tryCount <= CONNECTION_MAX_TRY_COUNT);
+    throw new RuntimeException("Connection could not be established!");
   }
 
 }

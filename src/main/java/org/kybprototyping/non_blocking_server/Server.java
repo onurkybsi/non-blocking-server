@@ -2,7 +2,6 @@ package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.StandardSocketOptions;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
@@ -90,8 +89,7 @@ public final class Server implements AutoCloseable {
 
       this.serverChannel.configureBlocking(false);
       this.serverChannel.socket().bind(new InetSocketAddress(this.properties.port()));
-      // TODO: How to set this?
-      this.serverChannel.setOption(StandardSocketOptions.SO_RCVBUF, Integer.MAX_VALUE);
+      this.serverChannel.socket().setSoTimeout(Integer.MAX_VALUE);
       this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
       this.executorService.submit(this::accept);
 
