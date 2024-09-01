@@ -3,7 +3,6 @@ package org.kybprototyping.non_blocking_server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -27,9 +26,8 @@ final class ServerTest {
 
   @BeforeAll
   static void setUp() throws Exception {
-    underTest = Server.build(ServerProperties.builder().port(8080).minBufferSizeInBytes(64).build(),
-        TestFormatter.instance, Clock.systemDefaultZone(), TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance);
+    underTest = Server.builder(TestFormatter.instance, TestHandler.instance,
+        TestMaxIncomingMessageSizeHandler.instance).build();
     underTest.start();
   }
 
@@ -41,9 +39,9 @@ final class ServerTest {
   @Test
   void should_Be_Running() throws Exception {
     // given
-    Server server =
-        Server.build(ServerProperties.builder().port(8081).build(), TestFormatter.instance,
-            Clock.systemUTC(), TestHandler.instance, TestMaxIncomingMessageSizeHandler.instance);
+    var properties = ServerProperties.builder().port(8081).build();
+    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
+        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
     server.start();
 
     // when
@@ -57,9 +55,9 @@ final class ServerTest {
   @Test
   void should_Be_Closed() throws Exception {
     // given
-    Server server =
-        Server.build(ServerProperties.builder().port(8081).build(), TestFormatter.instance,
-            Clock.systemUTC(), TestHandler.instance, TestMaxIncomingMessageSizeHandler.instance);
+    var properties = ServerProperties.builder().port(8081).build();
+    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
+        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
     server.start();
 
     // when
@@ -126,10 +124,10 @@ final class ServerTest {
     // given
     int port = 8081;
     int minBufferSizeInBytes = 1;
-    var serverProperties =
+    var properties =
         ServerProperties.builder().port(port).minBufferSizeInBytes(minBufferSizeInBytes).build();
-    Server server = Server.build(serverProperties, TestFormatter.instance, Clock.systemUTC(),
-        TestHandler.instance, TestMaxIncomingMessageSizeHandler.instance);
+    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
+        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
     server.start();
     String message = "12";
 
@@ -147,11 +145,11 @@ final class ServerTest {
     int port = 8081;
     int minBufferSizeInBytes = 1;
     int maxBufferSizeInBytes = 5;
-    var serverProperties = ServerProperties.builder().port(port)
-        .minBufferSizeInBytes(minBufferSizeInBytes).maxBufferSizeInBytes(maxBufferSizeInBytes)
-        .readTimeoutInMs(100_000).connectionTimeoutInMs(100_000).build();
-    Server server = Server.build(serverProperties, TestFormatter.instance, Clock.systemUTC(),
-        TestHandler.instance, TestMaxIncomingMessageSizeHandler.instance);
+    var properties =
+        ServerProperties.builder().port(port).minBufferSizeInBytes(minBufferSizeInBytes)
+            .maxBufferSizeInBytes(maxBufferSizeInBytes).build();
+    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
+        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
     server.start();
     String message = "12";
 

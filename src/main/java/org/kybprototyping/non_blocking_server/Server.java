@@ -5,17 +5,14 @@ import java.net.InetSocketAddress;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
-import java.time.Clock;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
-import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
@@ -29,14 +26,12 @@ public final class Server implements AutoCloseable {
 
   private static final Logger logger = LogManager.getLogger(Server.class);
 
-  private final ServerProperties properties;
-  private final Formatter formatter;
-  private final TimeUtils timeUtils;
-  private final IncomingMessageHandler incomingMessageHandler;
-  private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
   private final Selector selector;
   private final ServerSocketChannel serverChannel;
   private final ExecutorService executorService;
+  private final ServerProperties properties;
+  private final Reader reader;
+  private final Writer writer;
 
   private final AtomicBoolean isRunning = new AtomicBoolean(false);
   private final AtomicBoolean hasShutDown = new AtomicBoolean(false);
@@ -45,24 +40,17 @@ public final class Server implements AutoCloseable {
   private CountDownLatch stopCompletion;
 
   /**
-   * Builds the {@link Server} to run.
+   * Builder for {@link Server}
    * 
-   * @param properties server configuration values
    * @param formatter user {@link Formatter} implementation
-   * @param clock server clock
    * @param incomingMessageHandler user {@link IncomingMessageHandler} implementation
-   * @return built {@link Server}
-   * @throws IOException if the building fails
+   * @param maxIncomingMessageSizeHandler user {@link MaxIncomingMessageSizeHandler} implementation
+   * @return builder for {@link Server}
    */
-  public static Server build(ServerProperties properties, Formatter formatter, Clock clock,
+  public static ServerBuilder builder(Formatter formatter,
       IncomingMessageHandler incomingMessageHandler,
-      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler) throws IOException {
-    Selector selector = Selector.open();
-    ServerSocketChannel serverChannel = ServerSocketChannel.open();
-    ExecutorService executorService = Executors.newSingleThreadExecutor(new ServerThreadFactory());
-    return new Server(properties, formatter, TimeUtils.builder().clock(clock).build(),
-        incomingMessageHandler, maxIncomingMessageSizeHandler, selector, serverChannel,
-        executorService);
+      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler) {
+    return new ServerBuilder(formatter, incomingMessageHandler, maxIncomingMessageSizeHandler);
   }
 
   /**
@@ -91,9 +79,8 @@ public final class Server implements AutoCloseable {
     try {
       logger.info("Server properties: {}", this.properties);
 
-      this.serverChannel.configureBlocking(false);
       this.serverChannel.socket().bind(new InetSocketAddress(this.properties.port()));
-      this.serverChannel.socket().setSoTimeout(Integer.MAX_VALUE);
+      this.serverChannel.configureBlocking(false);
       this.serverChannel.register(this.selector, SelectionKey.OP_ACCEPT);
       this.executorService.submit(this::accept);
 
@@ -169,10 +156,8 @@ public final class Server implements AutoCloseable {
   private void accept() {
     logger.info("Listening on: {}", this.properties.port());
 
-    var selectedKeyAction = new SelectedKeyAction(
-        this.properties, this.selector, new Reader(this.properties, this.formatter, this.timeUtils,
-            this.incomingMessageHandler, this.maxIncomingMessageSizeHandler),
-        new Writer(this.properties, this.timeUtils));
+    var selectedKeyAction =
+        new SelectedKeyAction(this.properties, this.selector, this.reader, this.writer);
 
     this.isRunning.set(true);
     this.startCompletion.countDown();

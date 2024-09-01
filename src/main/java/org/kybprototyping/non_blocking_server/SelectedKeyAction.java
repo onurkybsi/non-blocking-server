@@ -41,12 +41,18 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
   }
 
   private void acceptConnection(SelectionKey selectedKey) throws IOException {
-    ServerSocketChannel server = (ServerSocketChannel) selectedKey.channel();
-    SocketChannel connection = server.accept();
-    connection.configureBlocking(false);
-    connection.register(selector, SelectionKey.OP_READ,
-        ServerMessagingContext.of(ByteBuffer.allocate(properties.minBufferSizeInBytes())));
-    logger.debug("Connection accepted: {}", connection);
+    ServerSocketChannel serverChannel = (ServerSocketChannel) selectedKey.channel();
+
+    SocketChannel connection = serverChannel.accept();
+    if (connection != null) {
+      connection.configureBlocking(false);
+      connection.register(selector, SelectionKey.OP_READ, serverMessagingContext());
+      logger.debug("Connection accepted: {}", connection);
+    }
+  }
+
+  private ServerMessagingContext serverMessagingContext() {
+    return ServerMessagingContext.of(ByteBuffer.allocate(properties.minBufferSizeInBytes()));
   }
 
 }
