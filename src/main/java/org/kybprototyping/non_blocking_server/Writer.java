@@ -19,6 +19,10 @@ final class Writer {
 
   void write(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
+    /*
+     * 'connection.isOpen' is not needed since we're the only one that can do that :) Watch out the
+     * difference between isOpen and isConnected.
+     */
     if (!connection.isConnected()) {
       logger.warn("Connection closed before writing is completed: {}", connection);
       // That's needed. Maybe the connection is closed but the resource is still not released.
