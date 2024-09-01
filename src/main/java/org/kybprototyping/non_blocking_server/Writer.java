@@ -21,9 +21,8 @@ final class Writer {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
     if (!connection.isConnected()) {
       logger.warn("Connection closed before writing is completed: {}", connection);
-      selectedKey.cancel();
       // That's needed. Maybe the connection is closed but the resource is still not released.
-      connection.close();
+      closeConnection(selectedKey, connection);
       return;
     }
 
@@ -34,19 +33,27 @@ final class Writer {
     }
 
     connection.write(ctx.getOutgoingMessageBuffer());
-
     if (!ctx.getOutgoingMessageBuffer().hasRemaining()) {
       logger.debug("Outgoing message has been completely written: {}", connection);
-      selectedKey.cancel();
-      connection.close();
+      closeConnection(selectedKey, connection);
       return;
     }
+
     if (isTimedOut(ctx)) {
       logger.warn("Connection timeout occurred: {}", connection);
-      selectedKey.cancel();
-      connection.close();
+      closeConnection(selectedKey, connection);
     }
   }
+
+  private void closeConnection(SelectionKey selectedKey, SocketChannel channel) throws IOException {
+    selectedKey.cancel();
+    /*
+     * Note that this doesn't not only close the connection with the client. It also releases the
+     * resource allocated for the connection which is essential for us to do!
+     */
+    channel.close();
+  }
+
 
   private boolean isTimedOut(ServerMessagingContext ctx) {
     long now = timeUtils.epochMilli();

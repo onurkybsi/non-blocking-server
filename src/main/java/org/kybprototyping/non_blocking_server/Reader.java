@@ -31,30 +31,45 @@ final class Reader {
 
     int bytesRead = connection.read(ctx.getIncomingMessageBuffer());
     /*
-     * There is no need to check the connection status(connection.isConnected()). -1 should indicate
-     * that the connection has closed by the client since if the incoming message is already
-     * completed, we should have detected that during last read.
+     * That doesn't mean that the client closed the connection! That might mean that, the client has
+     * closed its output stream so it is waiting for the server to write! So we should not close the
+     * connection without checking here!
      */
     if (bytesRead == -1) {
-      logger.warn("Connection closed before reading is completed: {}", connection);
-      selectedKey.cancel();
-      connection.close();
+      if (connection.isConnected()) {
+        // So the client closed its output stream and it waits for the server to write.
+        setReadingCompleted(connection, ctx, selectedKey);
+      } else {
+        // The client has closed the entire connection!
+        logger.warn("Connection closed before reading is completed: {}", connection);
+        closeConnection(selectedKey, connection);
+      }
+
       return;
     }
 
     if (formatter.isIncomingMessageComplete(ctx.getIncomingMessageBuffer())) {
-      logger.debug("Incoming message is complete: {}", connection);
-      ctx.setIncomingMessageComplete();
-      selectedKey.interestOps(SelectionKey.OP_WRITE);
-      executor.submit(new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler));
+      setReadingCompleted(connection, ctx, selectedKey);
       return;
     }
 
     if (isTimedOut(ctx)) {
       logger.warn("Connection timeout: {}", connection);
-      selectedKey.cancel();
-      connection.close();
+      closeConnection(selectedKey, connection);
     }
+  }
+
+  private void setReadingCompleted(SocketChannel connection, ServerMessagingContext ctx,
+      SelectionKey selectedKey) {
+    logger.debug("Incoming message is complete: {}", connection);
+    ctx.setIncomingMessageComplete();
+    selectedKey.interestOps(SelectionKey.OP_WRITE);
+    executor.submit(new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler));
+  }
+
+  private void closeConnection(SelectionKey selectedKey, SocketChannel channel) throws IOException {
+    selectedKey.cancel();
+    channel.close();
   }
 
   private boolean isTimedOut(ServerMessagingContext ctx) {

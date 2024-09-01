@@ -42,7 +42,8 @@ final class TestClient {
     out.write(sizeBytes);
     byte[] messageBytes = outgoingMessage.getBytes(StandardCharsets.UTF_8);
     out.write(messageBytes);
-    out.flush();
+    // Sends the FIN flag to the server which indicates that the writing of the client is done.
+    socket.shutdownOutput();
 
     InputStream in = socket.getInputStream();
     var byteArrayOutputStream = new ByteArrayOutputStream();
