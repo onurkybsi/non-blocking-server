@@ -1,8 +1,8 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.nio.charset.StandardCharsets;
+import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
-import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.OutgoingMessage;
 import lombok.extern.log4j.Log4j2;
 

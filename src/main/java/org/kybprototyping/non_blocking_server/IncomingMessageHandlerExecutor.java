@@ -2,8 +2,8 @@ package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
-import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 

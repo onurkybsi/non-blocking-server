@@ -1,4 +1,7 @@
-package org.kybprototyping.non_blocking_server.messaging;
+package org.kybprototyping.non_blocking_server.handler;
+
+import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
+import org.kybprototyping.non_blocking_server.messaging.OutgoingMessage;
 
 /**
  * Represents the user API that will handle the incoming message with more than the maximum allowed

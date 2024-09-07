@@ -1,8 +1,8 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.nio.channels.SocketChannel;
+import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
-import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 
