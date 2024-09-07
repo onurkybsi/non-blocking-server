@@ -10,17 +10,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 final class ServerTest {
-
-  private static final Logger logger = LogManager.getLogger(ServerTest.class);
 
   private static Server underTest;
 
@@ -111,7 +109,7 @@ final class ServerTest {
       try {
         return f.get();
       } catch (Exception e) {
-        logger.warn(e.getMessage());
+        log.warn(e.getMessage());
         return e.getMessage();
       }
     }).toList();

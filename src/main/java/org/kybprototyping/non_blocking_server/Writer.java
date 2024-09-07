@@ -3,16 +3,14 @@ package org.kybprototyping.non_blocking_server;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@Log4j2
 final class Writer {
-
-  private static final Logger logger = LogManager.getLogger(Writer.class);
 
   private final ServerProperties properties;
   private final TimeUtils timeUtils;
@@ -24,7 +22,7 @@ final class Writer {
      * difference between isOpen and isConnected.
      */
     if (!connection.isConnected()) {
-      logger.warn("Connection closed before writing is completed: {}", connection);
+      log.warn("Connection closed before writing is completed: {}", connection);
       // That's needed. Maybe the connection is closed but the resource is still not released.
       closeConnection(selectedKey, connection);
       // TODO: We should let the user know that the connection closed while it builds the response!
@@ -33,19 +31,19 @@ final class Writer {
 
     var ctx = (ServerMessagingContext) selectedKey.attachment();
     if (!ctx.isOutgoingMessageComplete()) {
-      logger.trace("Outgoing message is waiting: {}", connection);
+      log.trace("Outgoing message is waiting: {}", connection);
       return;
     }
 
     connection.write(ctx.getOutgoingMessageBuffer());
     if (!ctx.getOutgoingMessageBuffer().hasRemaining()) {
-      logger.debug("Outgoing message has been completely written: {}", connection);
+      log.debug("Outgoing message has been completely written: {}", connection);
       closeConnection(selectedKey, connection);
       return;
     }
 
     if (isTimedOut(ctx)) {
-      logger.warn("Connection timeout occurred: {}", connection);
+      log.warn("Connection timeout occurred: {}", connection);
       closeConnection(selectedKey, connection);
     }
   }

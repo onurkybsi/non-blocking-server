@@ -6,21 +6,20 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@Log4j2
 final class Reader {
 
   private static final int GROWTH_FACTOR = 2;
 
-  private static final Logger logger = LogManager.getLogger(Reader.class);
   private static final ExecutorService executor =
       Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("executor-", 0).factory());
 
@@ -46,7 +45,7 @@ final class Reader {
         setCompleted(connection, ctx, selectedKey);
       } else {
         // The client has closed the entire connection!
-        logger.warn("Connection closed before reading is completed: {}", connection);
+        log.warn("Connection closed before reading is completed: {}", connection);
         closeConnection(selectedKey, connection);
       }
 
@@ -59,7 +58,7 @@ final class Reader {
     }
 
     if (isTimedOut(ctx)) {
-      logger.warn("Connection timeout: {}", connection);
+      log.warn("Connection timeout: {}", connection);
       // TODO: Call user timeout handler!
       closeConnection(selectedKey, connection);
     }
@@ -71,7 +70,7 @@ final class Reader {
 
   private void setCompleted(SocketChannel connection, ServerMessagingContext ctx,
       SelectionKey selectedKey) {
-    logger.debug("Incoming message is complete: {}", connection);
+    log.debug("Incoming message is complete: {}", connection);
     ctx.setIncomingMessageComplete();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler));
@@ -96,7 +95,7 @@ final class Reader {
       return false;
     }
 
-    logger.debug("Incoming message reached max size: {}", connection);
+    log.debug("Incoming message reached max size: {}", connection);
     ctx.setIncomingMessageComplete();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(

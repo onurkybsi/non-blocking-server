@@ -7,15 +7,13 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@Log4j2
 final class SelectedKeyAction implements Consumer<SelectionKey> {
-
-  private static final Logger logger = LogManager.getLogger(SelectedKeyAction.class);
 
   private final ServerProperties properties;
   private final Selector selector;
@@ -32,11 +30,11 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
       } else if (selectedKey.isWritable()) {
         writer.write(selectedKey);
       } else {
-        logger.warn("Unexpected key selected, it's being cancelled: {}", selectedKey);
+        log.warn("Unexpected key selected, it's being cancelled: {}", selectedKey);
         selectedKey.cancel();
       }
     } catch (Exception e) {
-      logger.error("Something went wrong during processing selectedKey: {}", selectedKey, e);
+      log.error("Something went wrong during processing selectedKey: {}", selectedKey, e);
     }
   }
 
@@ -47,7 +45,7 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     if (connection != null) {
       connection.configureBlocking(false);
       connection.register(selector, SelectionKey.OP_READ, serverMessagingContext());
-      logger.debug("Connection accepted: {}", connection);
+      log.debug("Connection accepted: {}", connection);
     }
   }
 

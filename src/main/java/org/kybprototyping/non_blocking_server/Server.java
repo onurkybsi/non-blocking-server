@@ -8,13 +8,12 @@ import java.nio.channels.ServerSocketChannel;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.messaging.MaxIncomingMessageSizeHandler;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 
 /**
  * Non-blocking server that listens the configured port.
@@ -22,9 +21,8 @@ import lombok.RequiredArgsConstructor;
  * @author Onur Kayabasi (o.kayabasi@outlook.com)
  */
 @RequiredArgsConstructor(access = AccessLevel.PACKAGE)
+@Log4j2
 public final class Server implements AutoCloseable {
-
-  private static final Logger logger = LogManager.getLogger(Server.class);
 
   private final Selector selector;
   private final ServerSocketChannel serverChannel;
@@ -77,7 +75,7 @@ public final class Server implements AutoCloseable {
     this.stopCompletion = new CountDownLatch(1);
 
     try {
-      logger.info("Server properties: {}", this.properties);
+      log.info("Server properties: {}", this.properties);
 
       this.serverChannel.socket().bind(new InetSocketAddress(this.properties.port()));
       this.serverChannel.configureBlocking(false);
@@ -87,7 +85,7 @@ public final class Server implements AutoCloseable {
       this.startCompletion.await();
       return true;
     } catch (IOException e) {
-      logger.error("Bootstrap failed!", e);
+      log.error("Bootstrap failed!", e);
       throw e;
     }
   }
@@ -145,16 +143,16 @@ public final class Server implements AutoCloseable {
       this.executorService.close();
 
       this.hasShutDown.set(true);
-      logger.debug("Shutdown is successful!");
+      log.debug("Shutdown is successful!");
     } catch (IOException e) {
-      logger.error("Shutdown failed!", e);
+      log.error("Shutdown failed!", e);
       this.hasShutDown.set(false);
       throw e;
     }
   }
 
   private void accept() {
-    logger.info("Listening on: {}", this.properties.port());
+    log.info("Listening on: {}", this.properties.port());
 
     var selectedKeyAction =
         new SelectedKeyAction(this.properties, this.selector, this.reader, this.writer);
@@ -165,7 +163,7 @@ public final class Server implements AutoCloseable {
       try {
         this.selector.select(selectedKeyAction);
       } catch (Exception e) {
-        logger.error("Something went wrong during key selection!", e);
+        log.error("Something went wrong during key selection!", e);
       }
     }
     this.stopCompletion.countDown();
@@ -178,13 +176,13 @@ public final class Server implements AutoCloseable {
     if (!this.isRunning.get()) {
       return false;
     }
-    logger.debug("Server is being stopped...");
+    log.debug("Server is being stopped...");
 
     this.isRunning.set(false);
     this.selector.wakeup();
     this.stopCompletion.await();
 
-    logger.info("Server stopped successfully!");
+    log.info("Server stopped successfully!");
     return true;
   }
 

@@ -9,14 +9,12 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import lombok.extern.log4j.Log4j2;
 
+@Log4j2
 final class TestClient {
 
   private static final int CONNECTION_MAX_TRY_COUNT = 5;
-
-  private static final Logger logger = LogManager.getLogger(TestClient.class);
 
   static String send(String outgoingMessage) throws IOException {
     try (Socket socket = buildSocket(8080)) {
@@ -71,7 +69,7 @@ final class TestClient {
         return new Socket("localhost", port);
       } catch (Exception e) {
         tryCount++;
-        logger.warn("Exception occurred, retrying {}. times: {}", e.getMessage());
+        log.warn("Exception occurred, retrying {}. times: {}", e.getMessage());
       }
     } while (tryCount <= CONNECTION_MAX_TRY_COUNT);
     throw new RuntimeException("Connection could not be established!");
