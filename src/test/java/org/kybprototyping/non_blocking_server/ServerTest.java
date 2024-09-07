@@ -2,7 +2,15 @@ package org.kybprototyping.non_blocking_server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -15,6 +23,10 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.kybprototyping.non_blocking_server.test_implementations.TestFormatter;
+import org.kybprototyping.non_blocking_server.test_implementations.TestHandler;
+import org.kybprototyping.non_blocking_server.test_implementations.TestMaxIncomingMessageSizeHandler;
+import org.kybprototyping.non_blocking_server.test_implementations.TestTimeoutHandler;
 import lombok.extern.log4j.Log4j2;
 
 @Log4j2
@@ -24,8 +36,7 @@ final class ServerTest {
 
   @BeforeAll
   static void setUp() throws Exception {
-    underTest = Server.builder(TestFormatter.instance, TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance).build();
+    underTest = testServer(ServerProperties.builder().build());
     underTest.start();
   }
 
@@ -38,8 +49,7 @@ final class ServerTest {
   void should_Be_Running() throws Exception {
     // given
     var properties = ServerProperties.builder().port(8081).build();
-    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
+    Server server = testServer(properties);
     server.start();
 
     // when
@@ -54,8 +64,7 @@ final class ServerTest {
   void should_Be_Closed() throws Exception {
     // given
     var properties = ServerProperties.builder().port(8081).build();
-    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
+    Server server = testServer(properties);
     server.start();
 
     // when
@@ -124,8 +133,7 @@ final class ServerTest {
     int minBufferSizeInBytes = 1;
     var properties =
         ServerProperties.builder().port(port).minBufferSizeInBytes(minBufferSizeInBytes).build();
-    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
+    Server server = testServer(properties);
     server.start();
     String message = "12";
 
@@ -146,8 +154,7 @@ final class ServerTest {
     var properties =
         ServerProperties.builder().port(port).minBufferSizeInBytes(minBufferSizeInBytes)
             .maxBufferSizeInBytes(maxBufferSizeInBytes).build();
-    Server server = Server.builder(TestFormatter.instance, TestHandler.instance,
-        TestMaxIncomingMessageSizeHandler.instance).properties(properties).build();
+    Server server = testServer(properties);
     server.start();
     String message = "12";
 
@@ -157,6 +164,94 @@ final class ServerTest {
     // then
     assertEquals("INVALID_MESSAGE_SIZE", actual);
     server.close();
+  }
+
+  @Test
+  void should_Return_Timeout_Handlers_Response_When_Read_Timeout_Occurred()
+      throws IOException, InterruptedException {
+    // given
+    int port = 8081;
+    int readTimeoutInMs = 0;
+    int connectionTimeoutInMs = 2_000;
+    var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
+        .connectionTimeoutInMs(connectionTimeoutInMs).build();
+    Server server = testServer(properties);
+    server.start();
+    String message = "Hello!";
+
+    // when
+    String actual = null;
+    try (Socket socket = TestClient.buildSocket(8081)) {
+      OutputStream out = socket.getOutputStream();
+      byte[] sizeBytes = ByteBuffer.allocate(4).putInt(message.length()).array();
+      out.write(sizeBytes);
+      out.flush();
+      // Causes the timeout...
+      Thread.sleep(250);
+      byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+      out.write(messageBytes);
+      socket.shutdownOutput();
+
+      InputStream in = socket.getInputStream();
+      var byteArrayOutputStream = new ByteArrayOutputStream();
+      byte[] buffer = new byte[64];
+      int bytesRead;
+      while ((bytesRead = in.read(buffer)) != -1) {
+        byteArrayOutputStream.write(buffer, 0, bytesRead);
+      }
+
+      actual = byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+    }
+
+    // then
+    assertEquals("TIMEOUT", actual);
+    server.close();
+  }
+
+  @Test
+  void should_Close_Connection_When_Client_Did_Not_Read_Response_Before_Connection_Timeout()
+      throws IOException, InterruptedException {
+    // given
+    int port = 8081;
+    int readTimeoutInMs = 500;
+    int connectionTimeoutInMs = 1_000;
+    var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
+        .connectionTimeoutInMs(connectionTimeoutInMs).build();
+    Server server = testServer(properties);
+    server.start();
+    String message = "Hello!";
+
+    // when
+    assertThrows(IOException.class, () -> {
+      try (Socket socket = TestClient.buildSocket(8081)) {
+        OutputStream out = socket.getOutputStream();
+        byte[] sizeBytes = ByteBuffer.allocate(4).putInt(message.length()).array();
+        out.write(sizeBytes);
+        Thread.sleep(connectionTimeoutInMs);
+        byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
+        out.write(messageBytes);
+        socket.shutdownOutput();
+
+        // Causes the timeout...
+        InputStream in = socket.getInputStream();
+        var byteArrayOutputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[64];
+        int bytesRead;
+        while ((bytesRead = in.read(buffer)) != -1) {
+          byteArrayOutputStream.write(buffer, 0, bytesRead);
+        }
+      }
+    });
+
+    // then
+    server.close();
+  }
+
+  private static Server testServer(ServerProperties properties) throws IOException {
+    return Server
+        .builder(TestFormatter.instance, TestHandler.instance,
+            TestMaxIncomingMessageSizeHandler.instance, TestTimeoutHandler.instance)
+        .properties(properties).build();
   }
 
 }

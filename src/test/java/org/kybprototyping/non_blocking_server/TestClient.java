@@ -40,6 +40,21 @@ final class TestClient {
     return responses;
   }
 
+  static Socket buildSocket(int port) {
+    int tryCount = 1;
+    do {
+      try {
+        Thread.sleep((tryCount - 1) * 500);
+
+        return new Socket("localhost", port);
+      } catch (Exception e) {
+        tryCount++;
+        log.warn("Exception occurred, retrying {}. times: {}", e.getMessage());
+      }
+    } while (tryCount <= CONNECTION_MAX_TRY_COUNT);
+    throw new RuntimeException("Connection could not be established!");
+  }
+
   private static String send(Socket socket, String outgoingMessage) throws IOException {
     OutputStream out = socket.getOutputStream();
     byte[] sizeBytes = ByteBuffer.allocate(4).putInt(outgoingMessage.length()).array();
@@ -58,21 +73,6 @@ final class TestClient {
     }
 
     return byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
-  }
-
-  private static Socket buildSocket(int port) {
-    int tryCount = 1;
-    do {
-      try {
-        Thread.sleep((tryCount - 1) * 500);
-
-        return new Socket("localhost", port);
-      } catch (Exception e) {
-        tryCount++;
-        log.warn("Exception occurred, retrying {}. times: {}", e.getMessage());
-      }
-    } while (tryCount <= CONNECTION_MAX_TRY_COUNT);
-    throw new RuntimeException("Connection could not be established!");
   }
 
 }

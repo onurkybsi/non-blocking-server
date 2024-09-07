@@ -24,6 +24,7 @@ final class ServerMessagingContext {
   private volatile ByteBuffer outgoingMessageBuffer;
   private Long endTimestamp;
   private volatile boolean isOutgoingMessageComplete;
+  private boolean isTimeoutOccurred;
 
   static ServerMessagingContext of(ByteBuffer incomingMessageBuffer) {
     var ctx = new ServerMessagingContext(Instant.now().toEpochMilli());
@@ -49,6 +50,10 @@ final class ServerMessagingContext {
 
   void setEndTimestamp(Long endTimestamp) {
     this.endTimestamp = endTimestamp;
+  }
+
+  public void setTimeoutOccurred(boolean isTimeoutOccurred) {
+    this.isTimeoutOccurred = isTimeoutOccurred;
   }
 
 }

@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
+import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
@@ -32,6 +33,8 @@ public final class ServerBuilder {
   private final IncomingMessageHandler incomingMessageHandler;
   @NonNull
   private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
+  @NonNull
+  private final TimeoutHandler timeoutHandler;
 
   private ServerProperties properties = ServerProperties.builder().build();
   private Clock clock = Clock.systemDefaultZone();
@@ -45,12 +48,15 @@ public final class ServerBuilder {
   public Server build() throws IOException {
     Selector selector = Selector.open();
     ServerSocketChannel serverChannel = ServerSocketChannel.open();
-    ExecutorService executorService = Executors.newSingleThreadExecutor(new ServerThreadFactory());
+    ExecutorService serverThreadExecutor =
+        Executors.newSingleThreadExecutor(new ServerThreadFactory());
     TimeUtils timeUtils = TimeUtils.builder().clock(clock).build();
+    ExecutorService userThreadsExecutor =
+        Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("executor-", 0).factory());
     var reader = new Reader(properties, formatter, timeUtils, incomingMessageHandler,
-        maxIncomingMessageSizeHandler);
-    var writer = new Writer(properties, timeUtils);
-    return new Server(selector, serverChannel, executorService, properties, reader, writer);
+        maxIncomingMessageSizeHandler, timeoutHandler, userThreadsExecutor);
+    var writer = new Writer(properties, timeUtils, timeoutHandler, userThreadsExecutor);
+    return new Server(selector, serverChannel, serverThreadExecutor, properties, reader, writer);
   }
 
 }

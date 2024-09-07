@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
+import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
@@ -47,8 +48,9 @@ public final class Server implements AutoCloseable {
    */
   public static ServerBuilder builder(Formatter formatter,
       IncomingMessageHandler incomingMessageHandler,
-      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler) {
-    return new ServerBuilder(formatter, incomingMessageHandler, maxIncomingMessageSizeHandler);
+      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler, TimeoutHandler TimeoutHandler) {
+    return new ServerBuilder(formatter, incomingMessageHandler, maxIncomingMessageSizeHandler,
+        TimeoutHandler);
   }
 
   /**

@@ -1,11 +1,11 @@
-package org.kybprototyping.non_blocking_server;
+package org.kybprototyping.non_blocking_server.test_implementations;
 
 import java.nio.ByteBuffer;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 
-final class TestFormatter implements Formatter {
+public final class TestFormatter implements Formatter {
 
-  static TestFormatter instance = new TestFormatter();
+  public static TestFormatter instance = new TestFormatter();
 
   @Override
   public boolean isIncomingMessageComplete(ByteBuffer incomingMessageBuffer) {

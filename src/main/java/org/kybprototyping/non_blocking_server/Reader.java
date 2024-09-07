@@ -5,9 +5,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
+import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
+import org.kybprototyping.non_blocking_server.handler.TimeoutType;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
 import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
@@ -20,14 +21,13 @@ final class Reader {
 
   private static final int GROWTH_FACTOR = 2;
 
-  private static final ExecutorService executor =
-      Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("executor-", 0).factory());
-
   private final ServerProperties properties;
   private final Formatter formatter;
   private final TimeUtils timeUtils;
   private final IncomingMessageHandler incomingMessageHandler;
   private final MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler;
+  private final TimeoutHandler timeoutHandler;
+  private final ExecutorService executor;
 
   void read(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
@@ -57,10 +57,8 @@ final class Reader {
       return;
     }
 
-    if (isTimedOut(ctx)) {
-      log.warn("Connection timeout: {}", connection);
-      // TODO: Call user timeout handler!
-      closeConnection(selectedKey, connection);
+    if (setCompletedIfTimeout(ctx, selectedKey, connection)) {
+      return;
     }
 
     if (!setCompletedIfMaxIncomingMessageSize(ctx, selectedKey, connection)) {
@@ -69,9 +67,10 @@ final class Reader {
   }
 
   private void setCompleted(SocketChannel connection, ServerMessagingContext ctx,
-      SelectionKey selectedKey) {
+      SelectionKey selectedKey) throws IOException {
     log.debug("Incoming message is complete: {}", connection);
     ctx.setIncomingMessageComplete();
+    connection.socket().shutdownInput();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler));
   }
@@ -81,12 +80,37 @@ final class Reader {
     channel.close();
   }
 
-  private boolean isTimedOut(ServerMessagingContext ctx) {
+  private boolean setCompletedIfTimeout(ServerMessagingContext ctx, SelectionKey selectedKey,
+      SocketChannel connection) throws IOException {
+    var timeoutType = timeoutType(ctx);
+    if (timeoutType == null) {
+      return false;
+    }
+
+    log.warn("Connection timeout: {}", connection);
+    ctx.setIncomingMessageComplete();
+    ctx.setTimeoutOccurred(true);
+    connection.socket().shutdownInput();
+    selectedKey.interestOps(SelectionKey.OP_WRITE);
+    executor.submit(new TimeoutHandlerExecutor(connection, ctx, timeoutType, timeoutHandler));
+    return true;
+  }
+
+  private TimeoutType timeoutType(ServerMessagingContext ctx) {
     long now = timeUtils.epochMilli();
+
     boolean isReadTimeoutOccurred = now - ctx.getStartTimestamp() >= properties.readTimeoutInMs();
+    if (isReadTimeoutOccurred) {
+      return TimeoutType.READ;
+    }
+
     boolean isConnectionTimeoutOccurred =
         now - ctx.getStartTimestamp() >= properties.connectionTimeoutInMs();
-    return isReadTimeoutOccurred || isConnectionTimeoutOccurred;
+    if (isConnectionTimeoutOccurred) {
+      return TimeoutType.CONNECTION;
+    }
+
+    return null;
   }
 
   private boolean setCompletedIfMaxIncomingMessageSize(ServerMessagingContext ctx,
@@ -97,6 +121,7 @@ final class Reader {
 
     log.debug("Incoming message reached max size: {}", connection);
     ctx.setIncomingMessageComplete();
+    connection.socket().shutdownInput();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(
         new MaxIncomingMessageSizeHandlerExecutor(connection, ctx, maxIncomingMessageSizeHandler));
