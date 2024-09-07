@@ -1,9 +1,3 @@
 # Non-blocking Server Prototype
 
-This project is a prototype of a web server that runs non-blocking with a single thread thanks to the _Java NIO_ library and uses the resource efficiently by processing each incoming request with _virtual threads_.
-
-## Testing Command:
-
-```bash
-echo -ne 'Hello World!\x03' | nc localhost 8080
-```
+This project is a prototype of a configurable web server that runs non-blocking in a single thread thanks to the _Java NIO_ library and uses the host's resources efficiently by processing each incoming request with _virtual threads_.
