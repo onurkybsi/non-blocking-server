@@ -44,8 +44,8 @@ final class Writer {
       return;
     }
 
-    connection.write(ctx.getOutgoingMessageBuffer());
-    if (!ctx.getOutgoingMessageBuffer().hasRemaining()) {
+    connection.write(ctx.outgoingMessageBuffer());
+    if (!ctx.outgoingMessageBuffer().hasRemaining()) {
       log.debug("Outgoing message has been completely written: {}", connection);
       shutdownConnection(connection, ctx, selectedKey);
       return;
@@ -62,7 +62,7 @@ final class Writer {
       return;
     }
 
-    long timeElapsed = timeUtils.epochMilli() - ctx.getStartTimestamp();
+    long timeElapsed = timeUtils.epochMilli() - ctx.startTimestamp();
     long lingerDuration = Math.max(properties.connectionTimeoutInMs() - timeElapsed, 0);
     /**
      * If all bytes are received by the peer and the send buffer is empty, the socket will close
@@ -81,8 +81,8 @@ final class Writer {
     }
 
     log.warn("Connection timeout: {}", connection);
-    ctx.setIncomingMessageComplete();
-    ctx.setTimeoutOccurred(true);
+    ctx.isIncomingMessageComplete(true);
+    ctx.isTimeoutOccurred(true);
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(new TimeoutHandlerExecutor(connection, ctx, timeoutType, timeoutHandler));
     return true;
@@ -90,7 +90,7 @@ final class Writer {
 
   private TimeoutType timeoutType(ServerMessagingContext ctx) {
     boolean isConnectionTimeoutOccurred =
-        timeUtils.epochMilli() - ctx.getStartTimestamp() >= properties.connectionTimeoutInMs();
+        timeUtils.epochMilli() - ctx.startTimestamp() >= properties.connectionTimeoutInMs();
     return isConnectionTimeoutOccurred ? TimeoutType.CONNECTION : null;
   }
 

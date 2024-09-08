@@ -1,5 +1,6 @@
 package org.kybprototyping.non_blocking_server;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
 import org.kybprototyping.non_blocking_server.handler.TimeoutType;
@@ -18,11 +19,11 @@ final class TimeoutHandlerExecutor implements Runnable {
   @Override
   public void run() {
     try {
-      var incomingMessage = new IncomingMessage(connection.getRemoteAddress(),
-          ctx.getIncomingMessageBuffer().array());
+      var incomingMessage =
+          new IncomingMessage(connection.getRemoteAddress(), ctx.incomingMessageBuffer().array());
       var outgoingMessage = timeoutHandler.handle(incomingMessage, timeoutType).content();
-      ctx.setOutgoingMessageBuffer(outgoingMessage);
-      ctx.setOutgoingMessageComplete();
+      ctx.outgoingMessageBuffer(ByteBuffer.wrap(outgoingMessage));
+      ctx.isOutgoingMessageComplete(true);
     } catch (Exception e) {
       /**
        * TODO: Call user exception handler? Or user should have catched the exception just close the

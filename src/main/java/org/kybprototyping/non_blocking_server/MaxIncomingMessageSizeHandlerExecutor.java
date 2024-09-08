@@ -1,5 +1,6 @@
 package org.kybprototyping.non_blocking_server;
 
+import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.messaging.IncomingMessage;
@@ -16,11 +17,11 @@ final class MaxIncomingMessageSizeHandlerExecutor implements Runnable {
   @Override
   public void run() {
     try {
-      var incomingMessage = new IncomingMessage(connection.getRemoteAddress(),
-          ctx.getIncomingMessageBuffer().array());
+      var incomingMessage =
+          new IncomingMessage(connection.getRemoteAddress(), ctx.incomingMessageBuffer().array());
       var outgoingMessage = maxIncomingMessageSizeHandler.handle(incomingMessage).content();
-      ctx.setOutgoingMessageBuffer(outgoingMessage);
-      ctx.setOutgoingMessageComplete();
+      ctx.outgoingMessageBuffer(ByteBuffer.wrap(outgoingMessage));
+      ctx.isOutgoingMessageComplete(true);
     } catch (Exception e) {
       /**
        * TODO: Call user exception handler? Or user should have catched the exception just close the

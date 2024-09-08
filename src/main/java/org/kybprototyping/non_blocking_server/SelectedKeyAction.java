@@ -7,6 +7,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
+import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -15,6 +16,7 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 final class SelectedKeyAction implements Consumer<SelectionKey> {
 
+  private final TimeUtils timeUtils;
   private final ServerProperties properties;
   private final Selector selector;
   private final Reader reader;
@@ -50,7 +52,8 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
   }
 
   private ServerMessagingContext serverMessagingContext() {
-    return ServerMessagingContext.of(ByteBuffer.allocate(properties.minBufferSizeInBytes()));
+    return ServerMessagingContext.of(timeUtils.epochMilli(),
+        ByteBuffer.allocate(properties.minBufferSizeInBytes()));
   }
 
 }

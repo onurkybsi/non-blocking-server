@@ -12,6 +12,7 @@ import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
 import org.kybprototyping.non_blocking_server.messaging.Formatter;
+import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -29,6 +30,7 @@ public final class Server implements AutoCloseable {
   private final ServerSocketChannel serverChannel;
   private final ExecutorService executorService;
   private final ServerProperties properties;
+  private final TimeUtils timeUtils;
   private final Reader reader;
   private final Writer writer;
 
@@ -44,13 +46,14 @@ public final class Server implements AutoCloseable {
    * @param formatter user {@link Formatter} implementation
    * @param incomingMessageHandler user {@link IncomingMessageHandler} implementation
    * @param maxIncomingMessageSizeHandler user {@link MaxIncomingMessageSizeHandler} implementation
+   * @param timeoutHandler user {@link TimeoutHandler} implementation
    * @return builder for {@link Server}
    */
   public static ServerBuilder builder(Formatter formatter,
       IncomingMessageHandler incomingMessageHandler,
-      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler, TimeoutHandler TimeoutHandler) {
+      MaxIncomingMessageSizeHandler maxIncomingMessageSizeHandler, TimeoutHandler timeoutHandler) {
     return new ServerBuilder(formatter, incomingMessageHandler, maxIncomingMessageSizeHandler,
-        TimeoutHandler);
+        timeoutHandler);
   }
 
   /**
@@ -156,8 +159,8 @@ public final class Server implements AutoCloseable {
   private void accept() {
     log.info("Listening on: {}", this.properties.port());
 
-    var selectedKeyAction =
-        new SelectedKeyAction(this.properties, this.selector, this.reader, this.writer);
+    var selectedKeyAction = new SelectedKeyAction(this.timeUtils, this.properties, this.selector,
+        this.reader, this.writer);
 
     this.isRunning.set(true);
     this.startCompletion.countDown();

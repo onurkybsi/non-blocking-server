@@ -33,7 +33,7 @@ final class Reader {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
     var ctx = (ServerMessagingContext) selectedKey.attachment();
 
-    int bytesRead = connection.read(ctx.getIncomingMessageBuffer());
+    int bytesRead = connection.read(ctx.incomingMessageBuffer());
     /*
      * That doesn't mean that the client closed the connection! That might mean that, the client has
      * closed its output stream so it is waiting for the server to write! So we should not close the
@@ -52,7 +52,7 @@ final class Reader {
       return;
     }
 
-    if (formatter.isIncomingMessageComplete(ctx.getIncomingMessageBuffer())) {
+    if (formatter.isIncomingMessageComplete(ctx.incomingMessageBuffer())) {
       setCompleted(connection, ctx, selectedKey);
       return;
     }
@@ -69,10 +69,15 @@ final class Reader {
   private void setCompleted(SocketChannel connection, ServerMessagingContext ctx,
       SelectionKey selectedKey) throws IOException {
     log.debug("Incoming message is complete: {}", connection);
-    ctx.setIncomingMessageComplete();
+    ctx.isIncomingMessageComplete(true);
     connection.socket().shutdownInput();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
-    executor.submit(new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler));
+    executor.submit(incomingMessageHandlerExecutor(connection, ctx));
+  }
+
+  private IncomingMessageHandlerExecutor incomingMessageHandlerExecutor(SocketChannel connection,
+      ServerMessagingContext ctx) {
+    return new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler, timeUtils);
   }
 
   private void closeConnection(SelectionKey selectedKey, SocketChannel channel) throws IOException {
@@ -88,8 +93,8 @@ final class Reader {
     }
 
     log.warn("Read timeout: {}", connection);
-    ctx.setIncomingMessageComplete();
-    ctx.setTimeoutOccurred(true);
+    ctx.isIncomingMessageComplete(true);
+    ctx.isTimeoutOccurred(true);
     connection.socket().shutdownInput();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(new TimeoutHandlerExecutor(connection, ctx, timeoutType, timeoutHandler));
@@ -98,17 +103,17 @@ final class Reader {
 
   private TimeoutType timeoutType(ServerMessagingContext ctx) {
     long now = timeUtils.epochMilli();
-    return now - ctx.getStartTimestamp() >= properties.readTimeoutInMs() ? TimeoutType.READ : null;
+    return now - ctx.startTimestamp() >= properties.readTimeoutInMs() ? TimeoutType.READ : null;
   }
 
   private boolean setCompletedIfMaxIncomingMessageSize(ServerMessagingContext ctx,
       SelectionKey selectedKey, SocketChannel connection) throws IOException {
-    if (ctx.getIncomingMessageBuffer().capacity() < properties.maxBufferSizeInBytes()) {
+    if (ctx.incomingMessageBuffer().capacity() < properties.maxBufferSizeInBytes()) {
       return false;
     }
 
     log.debug("Incoming message reached max size: {}", connection);
-    ctx.setIncomingMessageComplete();
+    ctx.isIncomingMessageComplete(true);
     connection.socket().shutdownInput();
     selectedKey.interestOps(SelectionKey.OP_WRITE);
     executor.submit(
@@ -118,18 +123,18 @@ final class Reader {
 
   // Is this an efficient way?
   private void growBufferIfFull(ServerMessagingContext ctx) {
-    if (ctx.getIncomingMessageBuffer().hasRemaining()) {
+    if (ctx.incomingMessageBuffer().hasRemaining()) {
       return;
     }
 
-    int newCapacity = Math.min(ctx.getIncomingMessageBuffer().capacity() * GROWTH_FACTOR,
+    int newCapacity = Math.min(ctx.incomingMessageBuffer().capacity() * GROWTH_FACTOR,
         properties.maxBufferSizeInBytes());
     ByteBuffer grownBuffer = ByteBuffer.allocate(newCapacity);
 
-    ctx.getIncomingMessageBuffer().flip(); // Switch to read mode
-    grownBuffer.put(ctx.getIncomingMessageBuffer()); // Copy data to the grown buffer
+    ctx.incomingMessageBuffer().flip(); // Switch to read mode
+    grownBuffer.put(ctx.incomingMessageBuffer()); // Copy data to the grown buffer
 
-    ctx.setIncomingMessageBuffer(grownBuffer);
+    ctx.incomingMessageBuffer(grownBuffer);
   }
 
 }

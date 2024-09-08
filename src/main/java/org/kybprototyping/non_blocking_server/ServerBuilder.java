@@ -62,7 +62,8 @@ public final class ServerBuilder {
     var reader = new Reader(properties, formatter, timeUtils, incomingMessageHandler,
         maxIncomingMessageSizeHandler, timeoutHandler, userThreadsExecutor);
     var writer = new Writer(properties, timeUtils, timeoutHandler, userThreadsExecutor);
-    return new Server(selector, serverChannel, serverThreadExecutor, properties, reader, writer);
+    return new Server(selector, serverChannel, serverThreadExecutor, properties, timeUtils, reader,
+        writer);
   }
 
   private void assertPropertiesValid() {

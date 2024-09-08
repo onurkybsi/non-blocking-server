@@ -1,59 +1,33 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.nio.ByteBuffer;
-import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.Accessors;
 
 /**
  * Represents the messaging context between the client and the server.
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 @Getter
+@Setter(AccessLevel.PACKAGE)
+@Accessors(fluent = true, chain = true, makeFinal = true)
 final class ServerMessagingContext {
 
-  /*
-   * TODO: Use a custom wrapper to prevent the client server to write to buffer when it checks the
-   * end of reading!
-   */
-  private final Long startTimestamp;
-
+  private final long startTimestamp;
   private ByteBuffer incomingMessageBuffer;
-  private volatile boolean isIncomingMessageComplete;
+  private boolean isIncomingMessageComplete;
+  private volatile boolean isTimeoutOccurred;
   private volatile ByteBuffer outgoingMessageBuffer;
-  private Long endTimestamp;
   private volatile boolean isOutgoingMessageComplete;
-  private boolean isTimeoutOccurred;
+  private volatile long endTimestamp;
 
-  static ServerMessagingContext of(ByteBuffer incomingMessageBuffer) {
-    var ctx = new ServerMessagingContext(Instant.now().toEpochMilli());
-    ctx.setIncomingMessageBuffer(incomingMessageBuffer);
+  static ServerMessagingContext of(long startTimestamp, ByteBuffer incomingMessageBuffer) {
+    var ctx = new ServerMessagingContext(startTimestamp);
+    ctx.incomingMessageBuffer(incomingMessageBuffer);
     return ctx;
-  }
-
-  void setIncomingMessageComplete() {
-    this.isIncomingMessageComplete = true;
-  }
-
-  void setIncomingMessageBuffer(ByteBuffer incomingMessageBuffer) {
-    this.incomingMessageBuffer = incomingMessageBuffer;
-  }
-
-  void setOutgoingMessageComplete() {
-    this.isOutgoingMessageComplete = true;
-  }
-
-  void setOutgoingMessageBuffer(byte[] outgoingMessage) {
-    this.outgoingMessageBuffer = ByteBuffer.wrap(outgoingMessage);
-  }
-
-  void setEndTimestamp(Long endTimestamp) {
-    this.endTimestamp = endTimestamp;
-  }
-
-  public void setTimeoutOccurred(boolean isTimeoutOccurred) {
-    this.isTimeoutOccurred = isTimeoutOccurred;
   }
 
 }
