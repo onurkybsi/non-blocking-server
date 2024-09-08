@@ -1,6 +1,7 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -46,13 +47,14 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     SocketChannel connection = serverChannel.accept();
     if (connection != null) {
       connection.configureBlocking(false);
-      connection.register(selector, SelectionKey.OP_READ, serverMessagingContext());
+      connection.register(selector, SelectionKey.OP_READ,
+          serverMessagingContext(connection.getRemoteAddress()));
       log.debug("Connection accepted: {}", connection);
     }
   }
 
-  private ServerMessagingContext serverMessagingContext() {
-    return ServerMessagingContext.of(timeUtils.epochMilli(),
+  private ServerMessagingContext serverMessagingContext(SocketAddress remoteAddress) {
+    return ServerMessagingContext.of(timeUtils.epochMilli(), remoteAddress,
         ByteBuffer.allocate(properties.minBufferSizeInBytes()));
   }
 
