@@ -1,11 +1,11 @@
 package org.kybprototyping.non_blocking_server;
 
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
+import static java.util.concurrent.Executors.newThreadPerTaskExecutor;
 import java.io.IOException;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.time.Clock;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import org.kybprototyping.non_blocking_server.handler.IncomingMessageHandler;
 import org.kybprototyping.non_blocking_server.handler.MaxIncomingMessageSizeHandler;
 import org.kybprototyping.non_blocking_server.handler.TimeoutHandler;
@@ -18,7 +18,11 @@ import lombok.Setter;
 import lombok.experimental.Accessors;
 
 /**
- * Builder for {@link Server}
+ * Builder for {@link Server}.
+ * 
+ * <p>
+ * Note that, this class is not thread safe!
+ * </p>
  * 
  * @author Onur Kayabasi (o.kayabasi@outlook.com)
  */
@@ -43,20 +47,29 @@ public final class ServerBuilder {
    * Builds the {@link Server} to run.
    * 
    * @return built {@link Server}
+   * @throws IllegalArgumentException if given properties is not valid
    * @throws IOException if the building fails
    */
   public Server build() throws IOException {
-    Selector selector = Selector.open();
-    ServerSocketChannel serverChannel = ServerSocketChannel.open();
-    ExecutorService serverThreadExecutor =
-        Executors.newSingleThreadExecutor(new ServerThreadFactory());
-    TimeUtils timeUtils = TimeUtils.builder().clock(clock).build();
-    ExecutorService userThreadsExecutor =
-        Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("executor-", 0).factory());
+    assertPropertiesValid();
+
+    var selector = Selector.open();
+    var serverChannel = ServerSocketChannel.open();
+    var serverThreadExecutor = newSingleThreadExecutor(ServerThreadFactory.newInstance());
+    var timeUtils = TimeUtils.builder().clock(clock).build();
+    var userThreadsExecutor =
+        newThreadPerTaskExecutor(Thread.ofVirtual().name("executor-", 0).factory());
     var reader = new Reader(properties, formatter, timeUtils, incomingMessageHandler,
         maxIncomingMessageSizeHandler, timeoutHandler, userThreadsExecutor);
     var writer = new Writer(properties, timeUtils, timeoutHandler, userThreadsExecutor);
     return new Server(selector, serverChannel, serverThreadExecutor, properties, reader, writer);
+  }
+
+  private void assertPropertiesValid() {
+    if (properties.readTimeoutInMs() >= properties.connectionTimeoutInMs()) {
+      throw new IllegalArgumentException(
+          "properties.readTimeoutInMs cannot be greater than or equal to properties.connectionTimeoutInMs");
+    }
   }
 
 }

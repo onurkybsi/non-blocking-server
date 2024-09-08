@@ -4,6 +4,10 @@ import java.util.concurrent.ThreadFactory;
 
 final class ServerThreadFactory implements ThreadFactory {
 
+  static ServerThreadFactory newInstance() {
+    return new ServerThreadFactory();
+  }
+
   @Override
   public Thread newThread(Runnable r) {
     Thread t = new Thread(r, "server");

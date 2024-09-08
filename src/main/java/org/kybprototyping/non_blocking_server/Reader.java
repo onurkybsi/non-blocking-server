@@ -87,7 +87,7 @@ final class Reader {
       return false;
     }
 
-    log.warn("Connection timeout: {}", connection);
+    log.warn("Read timeout: {}", connection);
     ctx.setIncomingMessageComplete();
     ctx.setTimeoutOccurred(true);
     connection.socket().shutdownInput();
@@ -98,19 +98,7 @@ final class Reader {
 
   private TimeoutType timeoutType(ServerMessagingContext ctx) {
     long now = timeUtils.epochMilli();
-
-    boolean isReadTimeoutOccurred = now - ctx.getStartTimestamp() >= properties.readTimeoutInMs();
-    if (isReadTimeoutOccurred) {
-      return TimeoutType.READ;
-    }
-
-    boolean isConnectionTimeoutOccurred =
-        now - ctx.getStartTimestamp() >= properties.connectionTimeoutInMs();
-    if (isConnectionTimeoutOccurred) {
-      return TimeoutType.CONNECTION;
-    }
-
-    return null;
+    return now - ctx.getStartTimestamp() >= properties.readTimeoutInMs() ? TimeoutType.READ : null;
   }
 
   private boolean setCompletedIfMaxIncomingMessageSize(ServerMessagingContext ctx,
