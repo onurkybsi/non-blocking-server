@@ -1,14 +1,11 @@
 package org.kybprototyping.non_blocking_server;
 
 import java.io.IOException;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
-import org.kybprototyping.non_blocking_server.util.TimeUtils;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
@@ -17,7 +14,6 @@ import lombok.extern.log4j.Log4j2;
 @Log4j2
 final class SelectedKeyAction implements Consumer<SelectionKey> {
 
-  private final TimeUtils timeUtils;
   private final ServerProperties properties;
   private final Selector selector;
   private final Reader reader;
@@ -47,15 +43,10 @@ final class SelectedKeyAction implements Consumer<SelectionKey> {
     SocketChannel connection = serverChannel.accept();
     if (connection != null) {
       connection.configureBlocking(false);
-      connection.register(selector, SelectionKey.OP_READ,
-          serverMessagingContext(connection.getRemoteAddress()));
+      connection.socket().setKeepAlive(properties.isLongLivedConnectionsSupported());
+      connection.register(selector, SelectionKey.OP_READ);
       log.debug("Connection accepted: {}", connection);
     }
-  }
-
-  private ServerMessagingContext serverMessagingContext(SocketAddress remoteAddress) {
-    return ServerMessagingContext.of(timeUtils.epochMilli(), remoteAddress,
-        ByteBuffer.allocate(properties.minBufferSizeInBytes()));
   }
 
 }

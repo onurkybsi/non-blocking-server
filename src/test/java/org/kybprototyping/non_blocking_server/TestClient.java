@@ -18,13 +18,13 @@ final class TestClient {
 
   static String send(String outgoingMessage) throws IOException {
     try (Socket socket = buildSocket(8080)) {
-      return send(socket, outgoingMessage);
+      return send(socket, outgoingMessage, true);
     }
   }
 
   static String send(int port, String outgoingMessage) throws IOException {
     try (Socket socket = buildSocket(port)) {
-      return send(socket, outgoingMessage);
+      return send(socket, outgoingMessage, true);
     }
   }
 
@@ -33,7 +33,7 @@ final class TestClient {
 
     for (String outgoingMessage : outgoingMessages) {
       try (Socket socket = buildSocket(8080)) {
-        responses.add(send(socket, outgoingMessage));
+        responses.add(send(socket, outgoingMessage, true));
       }
     }
 
@@ -55,14 +55,17 @@ final class TestClient {
     throw new RuntimeException("Connection could not be established!");
   }
 
-  private static String send(Socket socket, String outgoingMessage) throws IOException {
+  static String send(Socket socket, String outgoingMessage, boolean shouldShutdownOutput)
+      throws IOException {
     OutputStream out = socket.getOutputStream();
     byte[] sizeBytes = ByteBuffer.allocate(4).putInt(outgoingMessage.length()).array();
     out.write(sizeBytes);
     byte[] messageBytes = outgoingMessage.getBytes(StandardCharsets.UTF_8);
     out.write(messageBytes);
-    // Sends the FIN flag to the server which indicates that the writing of the client is done.
-    socket.shutdownOutput();
+    if (shouldShutdownOutput) {
+      // Sends the FIN flag to the server which indicates that the writing of the client is done.
+      socket.shutdownOutput();
+    }
 
     InputStream in = socket.getInputStream();
     var byteArrayOutputStream = new ByteArrayOutputStream();
@@ -71,6 +74,30 @@ final class TestClient {
     while ((bytesRead = in.read(buffer)) != -1) {
       byteArrayOutputStream.write(buffer, 0, bytesRead);
     }
+
+    return byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
+  }
+
+  static String send(Socket socket, String outgoingMessage, boolean shouldShutdownOutput,
+      int expectedSize) throws IOException {
+    OutputStream out = socket.getOutputStream();
+    byte[] sizeBytes = ByteBuffer.allocate(4).putInt(outgoingMessage.length()).array();
+    out.write(sizeBytes);
+    byte[] messageBytes = outgoingMessage.getBytes(StandardCharsets.UTF_8);
+    out.write(messageBytes);
+    if (shouldShutdownOutput) {
+      // Sends the FIN flag to the server which indicates that the writing of the client is done.
+      socket.shutdownOutput();
+    }
+
+    InputStream in = socket.getInputStream();
+    var byteArrayOutputStream = new ByteArrayOutputStream();
+    byte[] buffer = new byte[64];
+    int bytesRead;
+    do {
+      bytesRead = in.read(buffer);
+      byteArrayOutputStream.write(buffer, 0, bytesRead);
+    } while (byteArrayOutputStream.size() != expectedSize);
 
     return byteArrayOutputStream.toString(StandardCharsets.UTF_8.name());
   }

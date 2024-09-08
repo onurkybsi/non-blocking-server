@@ -20,6 +20,7 @@ final class ServerMessagingContext {
   private final long startTimestamp;
   private final SocketAddress remoteAddress;
   private ByteBuffer incomingMessageBuffer;
+  private boolean isClientClosedOutputStream;
   private boolean isIncomingMessageComplete;
   private volatile boolean isTimeoutOccurred;
   private volatile ByteBuffer outgoingMessageBuffer;
@@ -59,6 +60,12 @@ final class ServerMessagingContext {
     } else if (!remoteAddress.equals(other.remoteAddress))
       return false;
     return true;
+  }
+
+  @Override
+  public String toString() {
+    return "ServerMessagingContext [startTimestamp=" + startTimestamp + ", remoteAddress="
+        + remoteAddress + "]";
   }
 
 }

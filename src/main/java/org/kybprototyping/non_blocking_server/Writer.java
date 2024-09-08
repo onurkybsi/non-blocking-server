@@ -40,14 +40,19 @@ final class Writer {
 
     var ctx = (ServerMessagingContext) selectedKey.attachment();
     if (!ctx.isOutgoingMessageComplete()) {
-      log.trace("Outgoing message is waiting: {}", connection);
+      log.trace("Outgoing message is waiting: {}", ctx);
       return;
     }
 
     connection.write(ctx.outgoingMessageBuffer());
     if (!ctx.outgoingMessageBuffer().hasRemaining()) {
-      log.debug("Outgoing message has been completely written: {}", connection);
-      shutdownConnection(connection, ctx, selectedKey);
+      log.debug("Outgoing message has been completely written: {}", ctx);
+      if (!properties.isLongLivedConnectionsSupported()) {
+        shutdownConnection(connection, ctx, selectedKey);
+      } else {
+        selectedKey.attach(null);
+        selectedKey.interestOps(SelectionKey.OP_READ);
+      }
       return;
     }
 
@@ -63,14 +68,14 @@ final class Writer {
     }
 
     long timeElapsed = timeUtils.epochMilli() - ctx.startTimestamp();
-    long lingerDuration = Math.max(properties.connectionTimeoutInMs() - timeElapsed, 0);
+    long lingerDuration = Math.max(properties.messagingTimeoutInMs() - timeElapsed, 0);
     /**
      * If all bytes are received by the peer and the send buffer is empty, the socket will close
      * immediately, and the linger timeout will have no effect.
      */
     channel.socket().setSoLinger(true, (int) lingerDuration);
     channel.close();
-    log.debug("Connection closed with linger duration {} ms", lingerDuration);
+    log.debug("Connection closed with linger duration {} ms", ctx);
   }
 
   private boolean setCompletedIfTimeout(ServerMessagingContext ctx, SelectionKey selectedKey,
@@ -79,18 +84,18 @@ final class Writer {
     if (timeoutType == null) {
       return false;
     }
+    log.warn("Messaging timeout: {}", ctx);
 
-    log.warn("Connection timeout: {}", connection);
-    ctx.isIncomingMessageComplete(true);
     ctx.isTimeoutOccurred(true);
     selectedKey.interestOps(SelectionKey.OP_WRITE);
+
     executor.submit(new TimeoutHandlerExecutor(connection, ctx, timeoutType, timeoutHandler));
     return true;
   }
 
   private TimeoutType timeoutType(ServerMessagingContext ctx) {
     boolean isConnectionTimeoutOccurred =
-        timeUtils.epochMilli() - ctx.startTimestamp() >= properties.connectionTimeoutInMs();
+        timeUtils.epochMilli() - ctx.startTimestamp() >= properties.messagingTimeoutInMs();
     return isConnectionTimeoutOccurred ? TimeoutType.CONNECTION : null;
   }
 

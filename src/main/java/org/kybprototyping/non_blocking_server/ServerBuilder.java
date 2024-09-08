@@ -62,14 +62,13 @@ public final class ServerBuilder {
     var reader = new Reader(properties, formatter, timeUtils, incomingMessageHandler,
         maxIncomingMessageSizeHandler, timeoutHandler, userThreadsExecutor);
     var writer = new Writer(properties, timeUtils, timeoutHandler, userThreadsExecutor);
-    return new Server(selector, serverChannel, serverThreadExecutor, properties, timeUtils, reader,
-        writer);
+    return new Server(selector, serverChannel, serverThreadExecutor, properties, reader, writer);
   }
 
   private void assertPropertiesValid() {
-    if (properties.readTimeoutInMs() >= properties.connectionTimeoutInMs()) {
+    if (properties.readTimeoutInMs() >= properties.messagingTimeoutInMs()) {
       throw new IllegalArgumentException(
-          "properties.readTimeoutInMs cannot be greater than or equal to properties.connectionTimeoutInMs");
+          "properties.readTimeoutInMs cannot be greater than or equal to properties.messagingTimeoutInMs");
     }
   }
 

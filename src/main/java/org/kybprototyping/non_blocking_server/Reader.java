@@ -31,7 +31,13 @@ final class Reader {
 
   void read(SelectionKey selectedKey) throws IOException {
     SocketChannel connection = (SocketChannel) selectedKey.channel();
-    var ctx = (ServerMessagingContext) selectedKey.attachment();
+    if (!connection.isConnected()) {
+      log.debug("Connection is already closed: {}", connection);
+      closeConnectionEntirely(selectedKey, connection);
+      return;
+    }
+
+    var ctx = context(selectedKey, connection);
 
     int bytesRead = connection.read(ctx.incomingMessageBuffer());
     /*
@@ -41,19 +47,31 @@ final class Reader {
      */
     if (bytesRead == -1) {
       if (connection.isConnected()) {
-        // So the client closed its output stream and it waits for the server to write.
-        setCompleted(connection, ctx, selectedKey);
-      } else {
-        // The client has closed the entire connection!
-        log.warn("Connection closed before reading is completed: {}", connection);
-        closeConnection(selectedKey, connection);
-      }
+        log.debug("Client closed its output stream: {}", ctx);
 
+        ctx.isClientClosedOutputStream(true);
+        ctx.isIncomingMessageComplete(isIncomingMessageComplete(ctx));
+        if (!properties.isLongLivedConnectionsSupported()) {
+          connection.socket().shutdownInput();
+        }
+        selectedKey.interestOps(SelectionKey.OP_WRITE);
+
+        executor.submit(incomingMessageHandlerExecutor(connection, ctx));
+      } else {
+        log.warn("Connection closed before reading is completed: {}", ctx);
+        closeConnectionEntirely(selectedKey, connection);
+      }
       return;
     }
 
-    if (formatter.isIncomingMessageComplete(ctx.incomingMessageBuffer())) {
-      setCompleted(connection, ctx, selectedKey);
+    if (isIncomingMessageComplete(ctx)) {
+      ctx.isIncomingMessageComplete(true);
+      if (!properties.isLongLivedConnectionsSupported()) {
+        connection.socket().shutdownInput();
+      }
+      selectedKey.interestOps(SelectionKey.OP_WRITE);
+
+      executor.submit(incomingMessageHandlerExecutor(connection, ctx));
       return;
     }
 
@@ -66,23 +84,31 @@ final class Reader {
     }
   }
 
-  private void setCompleted(SocketChannel connection, ServerMessagingContext ctx,
-      SelectionKey selectedKey) throws IOException {
-    log.debug("Incoming message is complete: {}", connection);
-    ctx.isIncomingMessageComplete(true);
-    connection.socket().shutdownInput();
-    selectedKey.interestOps(SelectionKey.OP_WRITE);
-    executor.submit(incomingMessageHandlerExecutor(connection, ctx));
+  private ServerMessagingContext context(SelectionKey selectedKey, SocketChannel connection)
+      throws IOException {
+    if (selectedKey.attachment() != null) {
+      return (ServerMessagingContext) selectedKey.attachment();
+    } else {
+      var ctx = ServerMessagingContext.of(timeUtils.epochMilli(), connection.getRemoteAddress(),
+          ByteBuffer.allocate(properties.minBufferSizeInBytes()));
+      selectedKey.attach(ctx);
+      return ctx;
+    }
+  }
+
+  private void closeConnectionEntirely(SelectionKey selectedKey, SocketChannel connection)
+      throws IOException {
+    selectedKey.channel();
+    connection.close();
+  }
+
+  private boolean isIncomingMessageComplete(ServerMessagingContext ctx) {
+    return formatter.isIncomingMessageComplete(ctx.incomingMessageBuffer());
   }
 
   private IncomingMessageHandlerExecutor incomingMessageHandlerExecutor(SocketChannel connection,
       ServerMessagingContext ctx) {
     return new IncomingMessageHandlerExecutor(connection, ctx, incomingMessageHandler, timeUtils);
-  }
-
-  private void closeConnection(SelectionKey selectedKey, SocketChannel channel) throws IOException {
-    selectedKey.cancel();
-    channel.close();
   }
 
   private boolean setCompletedIfTimeout(ServerMessagingContext ctx, SelectionKey selectedKey,
@@ -91,12 +117,14 @@ final class Reader {
     if (timeoutType == null) {
       return false;
     }
+    log.warn("Read timeout: {}", ctx);
 
-    log.warn("Read timeout: {}", connection);
-    ctx.isIncomingMessageComplete(true);
     ctx.isTimeoutOccurred(true);
-    connection.socket().shutdownInput();
+    if (!properties.isLongLivedConnectionsSupported()) {
+      connection.socket().shutdownInput();
+    }
     selectedKey.interestOps(SelectionKey.OP_WRITE);
+
     executor.submit(new TimeoutHandlerExecutor(connection, ctx, timeoutType, timeoutHandler));
     return true;
   }
@@ -111,11 +139,14 @@ final class Reader {
     if (ctx.incomingMessageBuffer().capacity() < properties.maxBufferSizeInBytes()) {
       return false;
     }
+    log.debug("Incoming message reached max size: {}", ctx);
 
-    log.debug("Incoming message reached max size: {}", connection);
     ctx.isIncomingMessageComplete(true);
-    connection.socket().shutdownInput();
+    if (!properties.isLongLivedConnectionsSupported()) {
+      connection.socket().shutdownInput();
+    }
     selectedKey.interestOps(SelectionKey.OP_WRITE);
+
     executor.submit(
         new MaxIncomingMessageSizeHandlerExecutor(connection, ctx, maxIncomingMessageSizeHandler));
     return true;

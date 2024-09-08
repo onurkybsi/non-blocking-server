@@ -12,6 +12,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -172,9 +174,9 @@ final class ServerTest {
     // given
     int port = 8081;
     int readTimeoutInMs = 0;
-    int connectionTimeoutInMs = 2_000;
+    int messagingTimeoutInMs = 2_000;
     var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
-        .connectionTimeoutInMs(connectionTimeoutInMs).build();
+        .messagingTimeoutInMs(messagingTimeoutInMs).build();
     Server server = testServer(properties);
     server.start();
     String message = "Hello!";
@@ -214,9 +216,9 @@ final class ServerTest {
     // given
     int port = 8081;
     int readTimeoutInMs = 500;
-    int connectionTimeoutInMs = 1_000;
+    int messagingTimeoutInMs = 1_000;
     var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
-        .connectionTimeoutInMs(connectionTimeoutInMs).build();
+        .messagingTimeoutInMs(messagingTimeoutInMs).build();
     Server server = testServer(properties);
     server.start();
     String message = "Hello!";
@@ -227,7 +229,7 @@ final class ServerTest {
         OutputStream out = socket.getOutputStream();
         byte[] sizeBytes = ByteBuffer.allocate(4).putInt(message.length()).array();
         out.write(sizeBytes);
-        Thread.sleep(connectionTimeoutInMs);
+        Thread.sleep(messagingTimeoutInMs);
         byte[] messageBytes = message.getBytes(StandardCharsets.UTF_8);
         out.write(messageBytes);
         socket.shutdownOutput();
@@ -244,6 +246,86 @@ final class ServerTest {
     });
 
     // then
+    server.close();
+  }
+
+  @Test
+  void should_Support_Long_Lived_Connections() throws IOException, InterruptedException {
+    // given
+    int port = 8081;
+    int readTimeoutInMs = 500;
+    int messagingTimeoutInMs = 1_000;
+    var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
+        .messagingTimeoutInMs(messagingTimeoutInMs).isLongLivedConnectionsSupported(true).build();
+    Server server = testServer(properties);
+    server.start();
+    String message = "Hello!";
+
+    // when & then
+    // Three messages with the same connection.
+    try (Socket socket = TestClient.buildSocket(8081)) {
+      assertEquals("OK", TestClient.send(socket, message, false, 2));
+      Thread.sleep(messagingTimeoutInMs);
+      assertEquals("OK", TestClient.send(socket, message, false, 2));
+      Thread.sleep(messagingTimeoutInMs);
+      assertEquals("OK", TestClient.send(socket, message, false, 2));
+    }
+    server.close();
+  }
+
+  @Test
+  @Disabled
+  void should_Support_Parallel_Processing_With_Long_Lived_Connections()
+      throws IOException, InterruptedException {
+    // given
+    int port = 8081;
+    int readTimeoutInMs = 500;
+    int messagingTimeoutInMs = 1_000;
+    var properties = ServerProperties.builder().port(port).readTimeoutInMs(readTimeoutInMs)
+        .messagingTimeoutInMs(messagingTimeoutInMs).isLongLivedConnectionsSupported(true).build();
+    Server server = testServer(properties);
+    server.start();
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    HashMap<Integer, Socket> connections = new HashMap<>();
+    int numberOfConnections = 5;
+    for (int i = 1; i <= numberOfConnections; i++) {
+      Socket socket = TestClient.buildSocket(8081);
+      connections.put(i, socket);
+    }
+
+    // when
+    var futures = new ArrayList<Future<String>>();
+    int numberOfMessages = 1_000;
+    for (int i = 1; i <= numberOfConnections; i++) {
+      for (int j = 0; j < numberOfMessages; j++) {
+        final int connectionNum = i;
+        final int messageNum = j;
+        final String outgoingMessage =
+            "Connection %s & Message %s".formatted(connectionNum, messageNum);
+        futures.add(executor.submit(
+            () -> TestClient.send(connections.get(connectionNum), outgoingMessage, false, 2)));
+      }
+    }
+    executor.shutdown();
+    executor.awaitTermination(1, TimeUnit.MINUTES);
+
+    // then
+    var outgoingMessages = futures.stream().map(f -> {
+      try {
+        return f.get();
+      } catch (Exception e) {
+        log.warn(e.getMessage());
+        return e.getMessage();
+      }
+    }).toList();
+    assertTrue(outgoingMessages.stream().allMatch(m -> "OK".equals(m)));
+    connections.entrySet().forEach(e -> {
+      try {
+        e.getValue().close();
+      } catch (IOException e1) {
+        e1.printStackTrace();
+      }
+    });
     server.close();
   }
 

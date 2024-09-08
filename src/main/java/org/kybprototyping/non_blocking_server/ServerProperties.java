@@ -7,7 +7,8 @@ import lombok.Builder;
  */
 @Builder
 public record ServerProperties(Integer port, Integer minBufferSizeInBytes,
-    Integer maxBufferSizeInBytes, Integer readTimeoutInMs, Integer connectionTimeoutInMs) {
+    Integer maxBufferSizeInBytes, Integer readTimeoutInMs, Integer messagingTimeoutInMs,
+    Boolean isLongLivedConnectionsSupported) {
   public static class ServerPropertiesBuilder {
     /**
      * {@link ServerProperties} with default values.
@@ -17,7 +18,8 @@ public record ServerProperties(Integer port, Integer minBufferSizeInBytes,
       minBufferSizeInBytes = 64;
       maxBufferSizeInBytes = 8000;
       readTimeoutInMs = 5000;
-      connectionTimeoutInMs = 20000;
+      messagingTimeoutInMs = 20000;
+      isLongLivedConnectionsSupported = false;
     }
   }
 }
